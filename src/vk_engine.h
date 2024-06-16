@@ -13,6 +13,15 @@ public:
 	VkDevice _device; // Vulkan device for commands
 	VkSurfaceKHR _surface;// Vulkan window surface
 
+	// swapchain stuff.
+	VkSwapchainKHR _swapchain;
+	VkFormat _swapchainImageFormat;
+
+	// number of outstanding swapchain images.
+	std::vector<VkImage> _swapchainImages;
+	std::vector<VkImageView> _swapchainImageViews;
+	VkExtent2D _swapchainExtent;
+
 	bool _isInitialized{ false };
 	uint64_t _frameNumber {0};
 	bool stop_rendering{ false };
@@ -38,4 +47,8 @@ private:
 	void init_swapchain();
 	void init_commands();
 	void init_sync_structures();
+
+	// TODO: create swapchain.
+	void create_swapchain(uint32_t width, uint32_t height);
+	void destroy_swapchain();
 };
