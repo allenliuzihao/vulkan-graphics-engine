@@ -105,6 +105,15 @@ void VulkanEngine::create_swapchain(uint32_t width, uint32_t height) {
     _swapchainImageViews = vkbSwapchain.get_image_views().value();
 }
 
+void VulkanEngine::destroy_swapchain() {
+    // destroy swapchain resources
+    for (int i = 0; i < _swapchainImageViews.size(); i++) {
+        vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
+    }
+    // this will also destroy the swapchain images. 
+    vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+}
+
 void VulkanEngine::init()
 {
     // only one engine initialization is allowed with the application.
@@ -139,6 +148,17 @@ void VulkanEngine::init()
 void VulkanEngine::cleanup()
 {
     if (_isInitialized) {
+        // destroy swapchain, swapchain images and views, and swapchain handle.
+        destroy_swapchain();
+        // destroy surface, depending on window and instance.
+        vkDestroySurfaceKHR(_instance, _surface, nullptr);
+        
+        // destroy device.
+        vkDestroyDevice(_device, nullptr);
+
+        // destroy instance.
+        vkb::destroy_debug_utils_messenger(_instance, _debug_messenger);
+        vkDestroyInstance(_instance, nullptr);
 
         SDL_DestroyWindow(_window);
     }
