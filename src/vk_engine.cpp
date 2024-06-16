@@ -16,6 +16,7 @@ VulkanEngine* loadedEngine = nullptr;
 
 VulkanEngine& VulkanEngine::Get() { return *loadedEngine; }
 
+constexpr bool bUseValidationLayers = false;
 void VulkanEngine::init_vulkan()
 {
     vkb::InstanceBuilder builder;
@@ -32,6 +33,39 @@ void VulkanEngine::init_vulkan()
     //grab the instance 
     _instance = vkb_inst.instance;
     _debug_messenger = vkb_inst.debug_messenger;
+
+    // create vulkan surface from SDL window library.
+    SDL_Vulkan_CreateSurface(_window, _instance, &_surface);
+
+    //vulkan 1.3 features
+    VkPhysicalDeviceVulkan13Features features{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
+    features.dynamicRendering = true;       // simplified vulkan render pass.
+    features.synchronization2 = true;       // improved synchronizaion, why 2 in the end.
+    
+    //vulkan 1.2 features
+    VkPhysicalDeviceVulkan12Features features12{ .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
+    features12.bufferDeviceAddress = true;      // shader pointer access to buffer memory.
+    features12.descriptorIndexing = true;       // bindless, allows arbitrary sized descriptor arrays. 
+    features12.timelineSemaphore = true;
+
+    //use vkbootstrap to select a gpu. 
+    //We want a gpu that can write to the SDL surface and supports vulkan 1.3 with the correct features
+    vkb::PhysicalDeviceSelector selector{ vkb_inst };
+    vkb::PhysicalDevice physicalDevice = selector
+        .set_minimum_version(1, 3)
+        .set_required_features_13(features)
+        .set_required_features_12(features12)
+        .set_surface(_surface)
+        .select()
+        .value();
+
+    //create the final vulkan device
+    vkb::DeviceBuilder deviceBuilder{ physicalDevice };
+    vkb::Device vkbDevice = deviceBuilder.build().value();
+
+    // Get the VkDevice handle used in the rest of a vulkan application
+    _device = vkbDevice.device;
+    _chosenGPU = physicalDevice.physical_device;
 }
 
 void VulkanEngine::init_swapchain()
@@ -49,7 +83,6 @@ void VulkanEngine::init_sync_structures()
     //nothing yet
 }
 
-constexpr bool bUseValidationLayers = false;
 void VulkanEngine::init()
 {
     // only one engine initialization is allowed with the application.
