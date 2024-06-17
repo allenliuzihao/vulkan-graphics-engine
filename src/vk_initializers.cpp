@@ -52,16 +52,21 @@ VkFenceCreateInfo vkinit::fence_create_info(VkFenceCreateFlags flags /*= 0*/)
     return info;
 }
 
-VkSemaphoreCreateInfo vkinit::semaphore_create_info(VkSemaphoreType type, uint64_t initialValue, VkSemaphoreCreateFlags flags /*= 0*/)
+VkSemaphoreTypeCreateInfo vkinit::semaphore_type_create_info(VkSemaphoreType type, uint64_t initialValue)
+{
+    VkSemaphoreTypeCreateInfo type_create_info{ VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO };
+    type_create_info.semaphoreType = type;
+    type_create_info.initialValue = initialValue;
+    return type_create_info;
+}
+
+
+VkSemaphoreCreateInfo vkinit::semaphore_create_info(VkSemaphoreTypeCreateInfo* type, VkSemaphoreCreateFlags flags /*= 0*/)
 {
     VkSemaphoreCreateInfo info = {};
     info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     info.flags = flags;
-
-    VkSemaphoreTypeCreateInfoKHR type_create_info{ VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO_KHR };
-    type_create_info.semaphoreType = type;
-    type_create_info.initialValue = initialValue;
-    info.pNext = &type_create_info;
+    info.pNext = type;
     return info;
 }
 //< init_sync
