@@ -67,15 +67,16 @@ VkSemaphoreCreateInfo vkinit::semaphore_create_info(VkSemaphoreType type, uint64
 //< init_sync
 
 //> init_submit
-VkSemaphoreSubmitInfo vkinit::semaphore_submit_info(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore)
+VkSemaphoreSubmitInfo vkinit::semaphore_submit_info(VkPipelineStageFlags2 stageMask, VkSemaphore semaphore, uint64_t value)
 {
 	VkSemaphoreSubmitInfo submitInfo{};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
 	submitInfo.pNext = nullptr;
 	submitInfo.semaphore = semaphore;
 	submitInfo.stageMask = stageMask;
+    // first device do this semaphore.
 	submitInfo.deviceIndex = 0;
-	submitInfo.value = 1;
+	submitInfo.value = value;
 
 	return submitInfo;
 }
@@ -86,6 +87,8 @@ VkCommandBufferSubmitInfo vkinit::command_buffer_submit_info(VkCommandBuffer cmd
 	info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
 	info.pNext = nullptr;
 	info.commandBuffer = cmd;
+    // all bits for valid devices in device group to 1.
+    // all devices participate in command buffer execution.
 	info.deviceMask = 0;
 
 	return info;

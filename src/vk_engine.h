@@ -6,13 +6,14 @@
 #include <vk_types.h>
 
 struct FrameData {
-	VkSemaphore _swapchainSemaphore, _renderSemaphore;
+	VkSemaphore _acquireSemaphore, _renderSemaphore;
 	VkFence _renderFence;
 
 	VkCommandPool _commandPool;
 	VkCommandBuffer _mainCommandBuffer;
 };
 
+constexpr uint64_t MAX_TIMEOUT = UINT64_MAX;
 constexpr unsigned int FRAME_OVERLAP = 3;
 
 class VulkanEngine {
