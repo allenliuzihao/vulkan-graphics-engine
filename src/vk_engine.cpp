@@ -79,7 +79,18 @@ void VulkanEngine::init_swapchain()
 
 void VulkanEngine::init_commands()
 {
-    //nothing yet
+    //create a command pool for commands submitted to the graphics queue.
+    //we also want the pool to allow for resetting of individual command buffers, via vkResetCommandBuffer().
+    VkCommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info(_graphicsQueueFamily, VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+
+    for (int i = 0; i < FRAME_OVERLAP; i++) {
+        // create command pool for each frame.
+        VK_CHECK(vkCreateCommandPool(_device, &commandPoolInfo, nullptr, &_frames[i]._commandPool));
+
+        // allocate the default command buffer that we will use for rendering
+        VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_frames[i]._commandPool, 1);
+        VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_frames[i]._mainCommandBuffer));
+    }
 }
 
 void VulkanEngine::init_sync_structures()
@@ -152,11 +163,19 @@ void VulkanEngine::init()
 void VulkanEngine::cleanup()
 {
     if (_isInitialized) {
+        //make sure the gpu has stopped doing its things
+        vkDeviceWaitIdle(_device);
+
+        // destroy command pool. 
+        for (int i = 0; i < FRAME_OVERLAP; i++) {
+            vkDestroyCommandPool(_device, _frames[i]._commandPool, nullptr);
+        }
+
         // destroy swapchain, swapchain images and views, and swapchain handle.
         destroy_swapchain();
         // destroy surface, depending on window and instance.
         vkDestroySurfaceKHR(_instance, _surface, nullptr);
-        
+
         // destroy device.
         vkDestroyDevice(_device, nullptr);
 
