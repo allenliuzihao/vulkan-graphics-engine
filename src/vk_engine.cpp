@@ -241,12 +241,12 @@ void VulkanEngine::draw()
     //start the command buffer recording
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 
-    auto stage = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-    vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    // Dependency between images where a layout transition is required, expressed after the semaphore signal (acquire semaphore)
+    vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_2_CLEAR_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
     //make a clear-color from frame number. This will flash with a 120 frame period.
     VkClearColorValue clearValue;
-    float flash = std::abs(std::sin((_frameNumber / 120.f) * std::numbers::pi_v<double>));
+    float flash = std::abs(std::sin((_frameNumber / 120.f) * std::numbers::pi_v<float>));
     clearValue = { { 0.0f, 0.0f, flash, 1.0f } };
 
     VkImageSubresourceRange clearRange = vkinit::image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
@@ -254,8 +254,8 @@ void VulkanEngine::draw()
     //clear image, this is technically a transfer command.
     vkCmdClearColorImage(cmd, _swapchainImages[swapchainImageIndex], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue, 1, &clearRange);
 
-    //make the swapchain image into presentable mode
-    vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,  VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, 0, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    // Dependency between images where a layout transition is required, expressed before the semaphore signal (render semaphore)
+    vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_PIPELINE_STAGE_2_CLEAR_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,  VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, 0, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
     //finalize the command buffer (we can no longer add commands, but it can now be executed)
     VK_CHECK(vkEndCommandBuffer(cmd));
