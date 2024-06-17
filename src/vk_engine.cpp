@@ -166,7 +166,7 @@ void VulkanEngine::cleanup()
         //make sure the gpu has stopped doing its things
         vkDeviceWaitIdle(_device);
 
-        // destroy command pool. 
+        // destroy command pool. don't destroy individual command buffers.
         for (int i = 0; i < FRAME_OVERLAP; i++) {
             vkDestroyCommandPool(_device, _frames[i]._commandPool, nullptr);
         }
