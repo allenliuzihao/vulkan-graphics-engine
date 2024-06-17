@@ -16,7 +16,7 @@ VkCommandBufferSubmitInfo command_buffer_submit_info(VkCommandBuffer cmd);
 
 VkFenceCreateInfo fence_create_info(VkFenceCreateFlags flags = 0);
 
-VkSemaphoreCreateInfo semaphore_create_info(VkSemaphoreCreateFlags flags = 0);
+VkSemaphoreCreateInfo semaphore_create_info(VkSemaphoreType type, uint64_t initialValue = 0, VkSemaphoreCreateFlags flags = 0);
 
 VkSubmitInfo2 submit_info(VkCommandBufferSubmitInfo* cmd, VkSemaphoreSubmitInfo* signalSemaphoreInfo,
     VkSemaphoreSubmitInfo* waitSemaphoreInfo);
