@@ -319,7 +319,7 @@ void VulkanEngine::draw()
     // Dependency between images where a layout transition is required, expressed after the semaphore signal (acquire semaphore)
     vkutil::transition_image(cmd, _drawImage.image, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_2_CLEAR_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-    // 
+    // clear background color.
     draw_background(cmd);
     
     // transfer draw image and swapchin image to transfer layouts.
