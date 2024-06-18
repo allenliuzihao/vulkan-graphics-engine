@@ -88,6 +88,10 @@ public:
 	// graphics queue and its family.
 	VkQueue _graphicsQueue;
 	uint32_t _graphicsQueueFamily;
+
+	// draw resources
+	AllocatedImage _drawImage;
+	VkExtent2D _drawExtent;
 private:
 	void init_vulkan();
 	void init_swapchain();
