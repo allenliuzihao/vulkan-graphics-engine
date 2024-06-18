@@ -309,6 +309,7 @@ void VulkanEngine::draw()
     // afterwards command buffer needs to be reset and record again.
     VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
+    // why one image here is sufficient?
     _drawExtent.width = _drawImage.imageExtent.width;
     _drawExtent.height = _drawImage.imageExtent.height;
 
@@ -334,13 +335,14 @@ void VulkanEngine::draw()
     //finalize the command buffer (we can no longer add commands, but it can now be executed)
     VK_CHECK(vkEndCommandBuffer(cmd));
 
-    //prepare the submission to the queue. 
-    //we want to wait on the _presentSemaphore, as that semaphore is signaled when the swapchain is ready
-    //we will signal the _renderSemaphore, to signal that rendering has finished
+    // prepare the submission to the queue. 
+    //  we want to wait on the _presentSemaphore, as that semaphore is signaled when the swapchain is ready
+    //  we will signal the _renderSemaphore, to signal that rendering has finished
     VkCommandBufferSubmitInfo cmdinfo = vkinit::command_buffer_submit_info(cmd);
-
-    VkSemaphoreSubmitInfo waitInfo = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_TRANSFER_BIT, get_current_frame()._acquireSemaphore);
-    VkSemaphoreSubmitInfo signalInfo = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT, get_current_frame()._renderSemaphore);
+    // wait before blit for acquire semaphore signal.
+    VkSemaphoreSubmitInfo waitInfo = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_BLIT_BIT, get_current_frame()._acquireSemaphore);
+    // signal after blit for render semaphore. 
+    VkSemaphoreSubmitInfo signalInfo = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_BLIT_BIT, get_current_frame()._renderSemaphore);
 
     VkSubmitInfo2 submit = vkinit::submit_info(&cmdinfo, &signalInfo, &waitInfo);
 
