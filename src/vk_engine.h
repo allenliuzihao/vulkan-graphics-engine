@@ -74,6 +74,8 @@ public:
 	//draw loop
 	void draw();
 
+	void draw_background(VkCommandBuffer cmd);
+
 	//run main loop
 	void run();
 
@@ -98,7 +100,6 @@ private:
 	void init_commands();
 	void init_sync_structures();
 
-	// TODO: create swapchain.
 	void create_swapchain(uint32_t width, uint32_t height);
 	void destroy_swapchain();
 };
