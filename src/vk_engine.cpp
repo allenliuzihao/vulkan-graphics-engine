@@ -1,4 +1,7 @@
-﻿//> includes
+﻿#define VMA_IMPLEMENTATION
+#include "vk_mem_alloc.h"
+
+//> includes
 #include "vk_engine.h"
 #include "vk_images.h"
 
@@ -72,6 +75,18 @@ void VulkanEngine::init_vulkan()
     // use vkbootstrap to get a Graphics queue, which can do it all.
     _graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
     _graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
+
+    // initialize the memory allocator
+    VmaAllocatorCreateInfo allocatorInfo = {};
+    allocatorInfo.physicalDevice = _chosenGPU;
+    allocatorInfo.device = _device;
+    allocatorInfo.instance = _instance;
+    allocatorInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+    vmaCreateAllocator(&allocatorInfo, &_allocator);
+
+    _mainDeletionQueue.push_function([&]() {
+        vmaDestroyAllocator(_allocator);
+    });
 }
 
 void VulkanEngine::init_swapchain()
@@ -190,7 +205,11 @@ void VulkanEngine::cleanup()
             vkDestroySemaphore(_device, _frames[i]._acquireSemaphore, nullptr);
 
             vkDestroyCommandPool(_device, _frames[i]._commandPool, nullptr);
+
+            _frames[i]._deletionQueue.flush();
         }
+        // delete.
+        _mainDeletionQueue.flush();
 
         // destroy swapchain, swapchain images and views, and swapchain handle.
         destroy_swapchain();
@@ -220,6 +239,9 @@ void VulkanEngine::draw()
     // fence signaled, need to make it unsignaled again.
     VK_CHECK(vkResetFences(_device, 1, &get_current_frame()._renderFence));
     
+    // flush deletion queue for this frame that just finish execution on the GPU.
+    get_current_frame()._deletionQueue.flush();
+
     //request image from the swapchain
     uint32_t swapchainImageIndex;
     // if acquireSemaphore is signaled on GPU, it means prior rendering to this swapchainImageIndex has finished presentation and all the work.

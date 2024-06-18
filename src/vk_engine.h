@@ -5,12 +5,35 @@
 
 #include <vk_types.h>
 
+struct DeletionQueue
+{
+	std::deque<std::function<void()>> deletors;
+
+	// growing lambda at the back of the queue.
+	void push_function(std::function<void()>&& function) {
+		deletors.push_back(function);
+	}
+
+	void flush() {
+		// reverse iterate the deletion queue to execute all the functions
+		//	stack. 
+		for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
+			(*it)(); //call functors
+		}
+
+		// clear lambdas. 
+		deletors.clear();
+	}
+};
+
 struct FrameData {
 	VkSemaphore _acquireSemaphore, _renderSemaphore;
 	VkFence _renderFence;
 
 	VkCommandPool _commandPool;
 	VkCommandBuffer _mainCommandBuffer;
+
+	DeletionQueue _deletionQueue;
 };
 
 constexpr uint64_t MAX_TIMEOUT = UINT64_MAX;
@@ -57,6 +80,10 @@ public:
 	FrameData _frames[FRAME_OVERLAP];
 
 	FrameData& get_current_frame() { return _frames[_frameNumber % FRAME_OVERLAP]; };
+
+	DeletionQueue _mainDeletionQueue;
+
+	VmaAllocator _allocator;
 
 	// graphics queue and its family.
 	VkQueue _graphicsQueue;
