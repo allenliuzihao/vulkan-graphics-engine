@@ -100,36 +100,38 @@ void VulkanEngine::init_swapchain()
         1
     };
 
-    //hardcoding the draw format to 32 bit float
-    _drawImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-    _drawImage.imageExtent = drawImageExtent;
-
     VkImageUsageFlags drawImageUsages{};
     drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
     drawImageUsages |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     drawImageUsages |= VK_IMAGE_USAGE_STORAGE_BIT;
     drawImageUsages |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    
+    for (int i = 0; i < FRAME_OVERLAP; ++i) {
+        //hardcoding the draw format to 32 bit float
+        _frames[i]._drawImage.imageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+        _frames[i]._drawImage.imageExtent = drawImageExtent;
 
-    VkImageCreateInfo rimg_info = vkinit::image_create_info(_drawImage.imageFormat, drawImageUsages, drawImageExtent);
+        VkImageCreateInfo rimg_info = vkinit::image_create_info(_frames[i]._drawImage.imageFormat, drawImageUsages, drawImageExtent);
 
-    //for the draw image, we want to allocate it from gpu local memory
-    VmaAllocationCreateInfo rimg_allocinfo = {};
-    rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-    rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        //for the draw image, we want to allocate it from gpu local memory
+        VmaAllocationCreateInfo rimg_allocinfo = {};
+        rimg_allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+        rimg_allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    // allocate and create the image on the gpu device local memory.
-    //  return allocated image and allocation. 
-    vmaCreateImage(_allocator, &rimg_info, &rimg_allocinfo, &_drawImage.image, &_drawImage.allocation, nullptr);
+        // allocate and create the image on the gpu device local memory.
+        //  return allocated image and allocation. 
+        vmaCreateImage(_allocator, &rimg_info, &rimg_allocinfo, &_frames[i]._drawImage.image, &_frames[i]._drawImage.allocation, nullptr);
 
-    //build a image-view for the draw image to use for rendering
-    VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(_drawImage.imageFormat, _drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
-    VK_CHECK(vkCreateImageView(_device, &rview_info, nullptr, &_drawImage.imageView));
+        //build a image-view for the draw image to use for rendering
+        VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(_frames[i]._drawImage.imageFormat, _frames[i]._drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
+        VK_CHECK(vkCreateImageView(_device, &rview_info, nullptr, &_frames[i]._drawImage.imageView));
 
-    //add to deletion queues
-    _mainDeletionQueue.push_function([=]() {
-        vkDestroyImageView(_device, _drawImage.imageView, nullptr);
-        vmaDestroyImage(_allocator, _drawImage.image, _drawImage.allocation);
-    });
+        //add to deletion queues
+        _mainDeletionQueue.push_function([=]() {
+            vkDestroyImageView(_device, _frames[i]._drawImage.imageView, nullptr);
+            vmaDestroyImage(_allocator, _frames[i]._drawImage.image, _frames[i]._drawImage.allocation);
+        });
+    }
 }
 
 void VulkanEngine::init_commands()
@@ -268,7 +270,7 @@ void VulkanEngine::cleanup()
     loadedEngine = nullptr;
 }
 
-void VulkanEngine::draw_background(VkCommandBuffer cmd) {
+void VulkanEngine::draw_background(VkCommandBuffer cmd, const AllocatedImage& image) {
     //make a clear-color from frame number. This will flash with a 120 frame period.
     VkClearColorValue clearValue;
     float flash = std::abs(std::sin((_frameNumber / 120.f) * std::numbers::pi_v<float>));
@@ -277,13 +279,13 @@ void VulkanEngine::draw_background(VkCommandBuffer cmd) {
     VkImageSubresourceRange clearRange = vkinit::image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
 
     //clear image, this is technically a transfer command.
-    vkCmdClearColorImage(cmd, _drawImage.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue, 1, &clearRange);
+    vkCmdClearColorImage(cmd, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue, 1, &clearRange);
 }
 
 void VulkanEngine::draw()
 {
     // wait until the gpu has finished rendering the last frame. Timeout of 1
-    // second
+    //  meaning current frame GPU resources are reset and ready for reuse.
     VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, MAX_TIMEOUT));
     // fence signaled, need to make it unsignaled again.
     VK_CHECK(vkResetFences(_device, 1, &get_current_frame()._renderFence));
@@ -310,27 +312,30 @@ void VulkanEngine::draw()
     VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     // why one image here is sufficient?
-    _drawExtent.width = _drawImage.imageExtent.width;
-    _drawExtent.height = _drawImage.imageExtent.height;
+    auto& currentImage = get_current_frame()._drawImage;
+    _drawExtent.width = currentImage.imageExtent.width;
+    _drawExtent.height = currentImage.imageExtent.height;
 
     //start the command buffer recording
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 
     // Dependency between images where a layout transition is required, expressed after the semaphore signal (acquire semaphore)
-    vkutil::transition_image(cmd, _drawImage.image, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_2_CLEAR_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    vkutil::transition_image(cmd, currentImage.image, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_2_CLEAR_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
     // clear background color.
-    draw_background(cmd);
+    draw_background(cmd, currentImage);
     
     // transfer draw image and swapchin image to transfer layouts.
-    vkutil::transition_image(cmd, _drawImage.image, VK_PIPELINE_STAGE_2_CLEAR_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-    vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    vkutil::transition_image(cmd, currentImage.image, VK_PIPELINE_STAGE_2_CLEAR_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    
+    // barrier here isn't sufficient, need 
+    vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_PIPELINE_STAGE_2_BLIT_BIT, 0, VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
     // execute a copy from the draw image into the swapchain
-    vkutil::copy_image_to_image(cmd, _drawImage.image, _swapchainImages[swapchainImageIndex], _drawExtent, _swapchainExtent);
+    vkutil::copy_image_to_image(cmd, currentImage.image, _swapchainImages[swapchainImageIndex], _drawExtent, _swapchainExtent);
 
     // Dependency between images where a layout transition is required, expressed before the semaphore signal (render semaphore)
-    vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT,  VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, 0, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_BLIT_BIT, 0, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
     //finalize the command buffer (we can no longer add commands, but it can now be executed)
     VK_CHECK(vkEndCommandBuffer(cmd));

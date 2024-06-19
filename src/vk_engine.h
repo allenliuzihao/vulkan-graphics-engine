@@ -33,6 +33,8 @@ struct FrameData {
 	VkCommandPool _commandPool;
 	VkCommandBuffer _mainCommandBuffer;
 
+	AllocatedImage _drawImage;
+
 	DeletionQueue _deletionQueue;
 };
 
@@ -74,13 +76,14 @@ public:
 	//draw loop
 	void draw();
 
-	void draw_background(VkCommandBuffer cmd);
+	void draw_background(VkCommandBuffer cmd, const AllocatedImage & image);
 
 	//run main loop
 	void run();
 
 	FrameData _frames[FRAME_OVERLAP];
 
+	FrameData& get_active_frame(uint32_t acquiredImageIndex) { return _frames[acquiredImageIndex % FRAME_OVERLAP]; };
 	FrameData& get_current_frame() { return _frames[_frameNumber % FRAME_OVERLAP]; };
 
 	DeletionQueue _mainDeletionQueue;
@@ -92,7 +95,7 @@ public:
 	uint32_t _graphicsQueueFamily;
 
 	// draw resources
-	AllocatedImage _drawImage;
+
 	VkExtent2D _drawExtent;
 private:
 	void init_vulkan();
