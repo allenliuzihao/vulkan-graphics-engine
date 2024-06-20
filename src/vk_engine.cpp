@@ -253,8 +253,14 @@ void VulkanEngine::init_background_pipelines()
     computePipelineCreateInfo.pNext = nullptr;
     computePipelineCreateInfo.layout = _gradientPipelineLayout;
     computePipelineCreateInfo.stage = stageinfo;
-
     VK_CHECK(vkCreateComputePipelines(_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &_gradientPipeline));
+
+    // shader module not needed after compute pipelien creation.
+    vkDestroyShaderModule(_device, computeDrawShader, nullptr);
+    _mainDeletionQueue.push_function([&]() {
+        vkDestroyPipeline(_device, _gradientPipeline, nullptr);
+        vkDestroyPipelineLayout(_device, _gradientPipelineLayout, nullptr);
+    });
 }
 
 void VulkanEngine::create_swapchain(uint32_t width, uint32_t height) {
@@ -362,7 +368,8 @@ void VulkanEngine::cleanup()
     loadedEngine = nullptr;
 }
 
-void VulkanEngine::draw_background(VkCommandBuffer cmd, const AllocatedImage& image) {
+void VulkanEngine::draw_background(VkCommandBuffer cmd, const FrameData& frame) {
+    /*
     //make a clear-color from frame number. This will flash with a 120 frame period.
     VkClearColorValue clearValue;
     float flash = std::abs(std::sin((_frameNumber / 120.f) * std::numbers::pi_v<float>));
@@ -372,6 +379,17 @@ void VulkanEngine::draw_background(VkCommandBuffer cmd, const AllocatedImage& im
 
     //clear image, this is technically a transfer command.
     vkCmdClearColorImage(cmd, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue, 1, &clearRange);
+    */
+
+    // bind the gradient drawing compute pipeline
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipeline);
+
+    // bind the descriptor set containing the draw image for the compute pipeline, bind descriptr set at set = 0.
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, _gradientPipelineLayout, 0, 1, &frame._drawImageDescriptors, 0, nullptr);
+
+    // execute the compute pipeline dispatch. We are using 16x16 workgroup size so we need to divide by it
+    uint32_t DISPATCH_X = static_cast<uint32_t>(std::ceil(static_cast<double>(_drawExtent.width) / 16.0)), DISPATCH_Y = static_cast<uint32_t>(std::ceil(static_cast<double>(_drawExtent.height) / 16.0));
+    vkCmdDispatch(cmd, DISPATCH_X, DISPATCH_Y, 1);
 }
 
 void VulkanEngine::draw()
@@ -404,7 +422,8 @@ void VulkanEngine::draw()
     VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
     // why one image here is sufficient?
-    auto& currentImage = get_current_frame()._drawImage;
+    auto& currentFrame = get_current_frame();
+    auto& currentImage = currentFrame._drawImage;
     _drawExtent.width = currentImage.imageExtent.width;
     _drawExtent.height = currentImage.imageExtent.height;
 
@@ -412,13 +431,14 @@ void VulkanEngine::draw()
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
 
     // pipeline barrier for prior usage of current image. 
-    vkutil::transition_image(cmd, currentImage.image, VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_2_CLEAR_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    //vkutil::transition_image(cmd, currentImage.image, VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_2_CLEAR_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    vkutil::transition_image(cmd, currentImage.image, VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 
     // clear background color.
-    draw_background(cmd, currentImage);
+    draw_background(cmd, currentFrame);
     
     // transfer draw image and swapchin image to transfer layouts.
-    vkutil::transition_image(cmd, currentImage.image, VK_PIPELINE_STAGE_2_CLEAR_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    vkutil::transition_image(cmd, currentImage.image, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     
     // acquire semaphore waits in the blit stage, so the first synchronization scope should be blit as well from the semaphore wait.
     vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_PIPELINE_STAGE_2_BLIT_BIT, 0, VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);

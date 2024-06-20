@@ -89,7 +89,7 @@ public:
 	//draw loop
 	void draw();
 
-	void draw_background(VkCommandBuffer cmd, const AllocatedImage & image);
+	void draw_background(VkCommandBuffer cmd, const FrameData& frame);
 
 	//run main loop
 	void run();
