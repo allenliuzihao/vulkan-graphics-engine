@@ -6,6 +6,8 @@
 #include <vk_types.h>
 #include <vk_descriptors.h>
 
+#include <filesystem>
+
 struct DeletionQueue
 {
 	std::deque<std::function<void()>> deletors;
@@ -42,6 +44,11 @@ struct FrameData {
 
 constexpr uint64_t MAX_TIMEOUT = UINT64_MAX;
 constexpr unsigned int FRAME_OVERLAP = 3;
+
+// project paths.
+const auto CURRENT_SOURCE_PATH = std::filesystem::current_path();
+const auto PROJECT_ROOT_PATH = CURRENT_SOURCE_PATH.parent_path().parent_path();
+const auto SHADER_ROOT_PATH = PROJECT_ROOT_PATH / "shaders";
 
 class VulkanEngine {
 public:

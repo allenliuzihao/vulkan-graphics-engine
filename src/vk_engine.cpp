@@ -232,9 +232,7 @@ void VulkanEngine::init_background_pipelines()
     VK_CHECK(vkCreatePipelineLayout(_device, &computeLayout, nullptr, &_gradientPipelineLayout));
 
     // build current folder.
-    auto currentPath = std::filesystem::current_path();
-    auto shaderFolder = currentPath.parent_path().parent_path();
-    std::string shaderPath = (shaderFolder / "shaders" / "gradient.comp.spv").string();
+    std::string shaderPath = (SHADER_ROOT_PATH / "gradient.comp.spv").string();
 
     //layout code
     VkShaderModule computeDrawShader;
