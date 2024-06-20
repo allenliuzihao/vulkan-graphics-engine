@@ -10,11 +10,13 @@
 
 #include <vk_initializers.h>
 #include <vk_types.h>
+#include <vk_pipelines.h>
 #include "VkBootstrap.h"
 
 #include <chrono>
 #include <thread>
 #include <numbers>
+#include <filesystem>
 
 // global pointer for vulkan engine singleton reference.
 VulkanEngine* loadedEngine = nullptr;
@@ -213,6 +215,50 @@ void VulkanEngine::init_descriptors()
     });
 }
 
+void VulkanEngine::init_pipelines()
+{
+    init_background_pipelines();
+}
+
+void VulkanEngine::init_background_pipelines()
+{
+    VkPipelineLayoutCreateInfo computeLayout{};
+    computeLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    computeLayout.pNext = nullptr;
+    // compute pipeline set = 0.
+    computeLayout.pSetLayouts = &_drawImageDescriptorLayout;
+    computeLayout.setLayoutCount = 1;
+
+    VK_CHECK(vkCreatePipelineLayout(_device, &computeLayout, nullptr, &_gradientPipelineLayout));
+
+    // build current folder.
+    auto currentPath = std::filesystem::current_path();
+    auto shaderFolder = currentPath.parent_path().parent_path();
+    std::string shaderPath = (shaderFolder / "shaders" / "gradient.comp.spv").string();
+
+    //layout code
+    VkShaderModule computeDrawShader;
+    if (!vkutil::load_shader_module(shaderPath.c_str(), _device, &computeDrawShader))
+    {
+        fmt::print("Error when building the compute shader \n");
+    }
+
+    VkPipelineShaderStageCreateInfo stageinfo{};
+    stageinfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stageinfo.pNext = nullptr;
+    stageinfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    stageinfo.module = computeDrawShader;
+    stageinfo.pName = "main";
+
+    VkComputePipelineCreateInfo computePipelineCreateInfo{};
+    computePipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    computePipelineCreateInfo.pNext = nullptr;
+    computePipelineCreateInfo.layout = _gradientPipelineLayout;
+    computePipelineCreateInfo.stage = stageinfo;
+
+    VK_CHECK(vkCreateComputePipelines(_device, VK_NULL_HANDLE, 1, &computePipelineCreateInfo, nullptr, &_gradientPipeline));
+}
+
 void VulkanEngine::create_swapchain(uint32_t width, uint32_t height) {
     vkb::SwapchainBuilder swapchainBuilder{ _chosenGPU, _device, _surface };
 
@@ -272,6 +318,8 @@ void VulkanEngine::init()
     init_sync_structures();
 
     init_descriptors();
+
+    init_pipelines();
 
     // everything went fine
     _isInitialized = true;

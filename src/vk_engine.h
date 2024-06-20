@@ -51,6 +51,10 @@ public:
 	VkDevice _device; // Vulkan device for commands
 	VkSurfaceKHR _surface;// Vulkan window surface
 
+	// pipeline stuff.
+	VkPipeline _gradientPipeline;
+	VkPipelineLayout _gradientPipelineLayout;
+
 	// swapchain stuff.
 	VkSwapchainKHR _swapchain;
 	VkFormat _swapchainImageFormat;
@@ -108,6 +112,8 @@ private:
 	void init_swapchain();
 	void init_commands();
 	void init_sync_structures();
+	void init_pipelines();
+	void init_background_pipelines();
 
 	void create_swapchain(uint32_t width, uint32_t height);
 	void destroy_swapchain();
