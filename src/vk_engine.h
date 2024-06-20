@@ -4,6 +4,7 @@
 #pragma once
 
 #include <vk_types.h>
+#include <vk_descriptors.h>
 
 struct DeletionQueue
 {
@@ -34,6 +35,7 @@ struct FrameData {
 	VkCommandBuffer _mainCommandBuffer;
 
 	AllocatedImage _drawImage;
+	VkDescriptorSet		_drawImageDescriptors;
 
 	DeletionQueue _deletionQueue;
 };
@@ -90,15 +92,19 @@ public:
 
 	VmaAllocator _allocator;
 
+	// descriptors
+	DescriptorAllocator globalDescriptorAllocator;
+	VkDescriptorSetLayout _drawImageDescriptorLayout;
+
 	// graphics queue and its family.
 	VkQueue _graphicsQueue;
 	uint32_t _graphicsQueueFamily;
 
 	// draw resources
-
 	VkExtent2D _drawExtent;
 private:
 	void init_vulkan();
+	void init_descriptors();
 	void init_swapchain();
 	void init_commands();
 	void init_sync_structures();
