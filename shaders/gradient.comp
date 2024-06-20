@@ -20,6 +20,8 @@ void main()
             color.x = float(texelCoord.x)/(size.x);
             color.y = float(texelCoord.y)/(size.y);	
         }
+
+        // vulkan starts at upper left corner of the screen.
         imageStore(image, texelCoord, color);
     }
 }
