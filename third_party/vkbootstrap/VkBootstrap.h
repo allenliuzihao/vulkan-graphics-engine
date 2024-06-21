@@ -754,6 +754,9 @@ struct Device {
     Result<uint32_t> get_dedicated_queue_index(QueueType type) const;
 
     Result<VkQueue> get_queue(QueueType type) const;
+
+    Result<VkQueue> get_queue_by_index(QueueType type, uint32_t index) const;
+
     // Only a compute or transfer queue type is valid. All other queue types do not support a 'dedicated' queue
     Result<VkQueue> get_dedicated_queue(QueueType type) const;
 

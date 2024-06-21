@@ -78,6 +78,10 @@ void VulkanEngine::init_vulkan()
     _graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
     _graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
 
+    const auto & r = vkbDevice.get_queue_by_index(vkb::QueueType::graphics, 1);
+    _immediateGraphicsQueue = r.has_value() ? r.value() : _graphicsQueue;
+    _immediateGraphicsQueueFamily = _graphicsQueueFamily;
+
     // initialize the memory allocator
     VmaAllocatorCreateInfo allocatorInfo = {};
     allocatorInfo.physicalDevice = _chosenGPU;
@@ -150,6 +154,18 @@ void VulkanEngine::init_commands()
         VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_frames[i]._commandPool, 1);
         VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_frames[i]._mainCommandBuffer));
     }
+
+    // immediate submit mode command pool.
+    VK_CHECK(vkCreateCommandPool(_device, &commandPoolInfo, nullptr, &_immCommandPool));
+
+    // allocate the command buffer for immediate submits
+    VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_immCommandPool, 1);
+    // this command buffer is resettable, which means it can be allocated once and reset multiple times.
+    VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_immCommandBuffer));
+
+    _mainDeletionQueue.push_function([=]() {
+        vkDestroyCommandPool(_device, _immCommandPool, nullptr);
+    });
 }
 
 void VulkanEngine::init_sync_structures()
@@ -169,6 +185,13 @@ void VulkanEngine::init_sync_structures()
         VK_CHECK(vkCreateSemaphore(_device, &semaphoreCreateInfo, nullptr, &_frames[i]._acquireSemaphore));
         VK_CHECK(vkCreateSemaphore(_device, &semaphoreCreateInfo, nullptr, &_frames[i]._renderSemaphore));
     }
+
+    // fence is signaled when created.
+    VK_CHECK(vkCreateFence(_device, &fenceCreateInfo, nullptr, &_immFence));
+    _mainDeletionQueue.push_function([=]() { 
+        // capture by value.
+        vkDestroyFence(_device, _immFence, nullptr); 
+    });
 }
 
 void VulkanEngine::init_descriptors()
@@ -263,6 +286,10 @@ void VulkanEngine::init_background_pipelines()
     });
 }
 
+void VulkanEngine::init_imgui() {
+
+}
+
 void VulkanEngine::create_swapchain(uint32_t width, uint32_t height) {
     vkb::SwapchainBuilder swapchainBuilder{ _chosenGPU, _device, _surface };
 
@@ -325,6 +352,8 @@ void VulkanEngine::init()
 
     init_pipelines();
 
+    init_imgui();
+
     // everything went fine
     _isInitialized = true;
 }
@@ -366,6 +395,34 @@ void VulkanEngine::cleanup()
 
     // clear engine pointer
     loadedEngine = nullptr;
+}
+
+void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function)
+{
+    // reset fence to unsignaled
+    VK_CHECK(vkResetFences(_device, 1, &_immFence));
+    // reset command buffer for re-recording.
+    VK_CHECK(vkResetCommandBuffer(_immCommandBuffer, 0));
+
+    VkCommandBuffer cmd = _immCommandBuffer;
+    // need to reset for reuse after submit.
+    VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+    VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+
+    function(cmd);
+
+    VK_CHECK(vkEndCommandBuffer(cmd));
+
+    // just submit the prior commands and then wait for it to finish.
+    VkCommandBufferSubmitInfo cmdinfo = vkinit::command_buffer_submit_info(cmd);
+    VkSubmitInfo2 submit = vkinit::submit_info(&cmdinfo, nullptr, nullptr);
+
+    // submit command buffer to the queue and execute it.
+    //  _renderFence will now block until the graphic commands finish execution
+    VK_CHECK(vkQueueSubmit2(_immediateGraphicsQueue, 1, &submit, _immFence));
+    // wait until prior queue submits finish on the CPU.
+    VK_CHECK(vkWaitForFences(_device, 1, &_immFence, true, MAX_TIMEOUT));
 }
 
 void VulkanEngine::draw_background(VkCommandBuffer cmd, const FrameData& frame) {

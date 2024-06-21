@@ -62,6 +62,13 @@ public:
 	VkPipeline _gradientPipeline;
 	VkPipelineLayout _gradientPipelineLayout;
 
+	// immediate submit structures
+	VkFence _immFence;
+	VkCommandBuffer _immCommandBuffer;
+	VkCommandPool _immCommandPool;
+
+	void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
+
 	// swapchain stuff.
 	VkSwapchainKHR _swapchain;
 	VkFormat _swapchainImageFormat;
@@ -111,9 +118,13 @@ public:
 	VkQueue _graphicsQueue;
 	uint32_t _graphicsQueueFamily;
 
+	VkQueue _immediateGraphicsQueue;
+	uint32_t _immediateGraphicsQueueFamily;
+
 	// draw resources
 	VkExtent2D _drawExtent;
 private:
+	void init_imgui();
 	void init_vulkan();
 	void init_descriptors();
 	void init_swapchain();

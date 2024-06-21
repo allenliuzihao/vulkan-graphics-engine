@@ -1582,6 +1582,15 @@ Result<VkQueue> Device::get_queue(QueueType type) const {
     internal_table.fp_vkGetDeviceQueue(device, index.value(), 0, &out_queue);
     return out_queue;
 }
+
+Result<VkQueue> Device::get_queue_by_index(QueueType type, uint32_t queueIndex) const {
+    auto index = get_queue_index(type);
+    if (!index.has_value()) return { index.error() };
+    VkQueue out_queue;
+    internal_table.fp_vkGetDeviceQueue(device, index.value(), queueIndex, &out_queue);
+    return out_queue;
+}
+
 Result<VkQueue> Device::get_dedicated_queue(QueueType type) const {
     auto index = get_dedicated_queue_index(type);
     if (!index.has_value()) return { index.error() };
