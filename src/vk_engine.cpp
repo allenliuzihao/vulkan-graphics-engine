@@ -13,6 +13,10 @@
 #include <vk_pipelines.h>
 #include "VkBootstrap.h"
 
+#include "imgui.h"
+#include "imgui_impl_sdl2.h"
+#include "imgui_impl_vulkan.h"
+
 #include <chrono>
 #include <thread>
 #include <numbers>
@@ -77,10 +81,6 @@ void VulkanEngine::init_vulkan()
     // use vkbootstrap to get a Graphics queue, which can do it all.
     _graphicsQueue = vkbDevice.get_queue(vkb::QueueType::graphics).value();
     _graphicsQueueFamily = vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
-
-    const auto & r = vkbDevice.get_queue_by_index(vkb::QueueType::graphics, 1);
-    _immediateGraphicsQueue = r.has_value() ? r.value() : _graphicsQueue;
-    _immediateGraphicsQueueFamily = _graphicsQueueFamily;
 
     // initialize the memory allocator
     VmaAllocatorCreateInfo allocatorInfo = {};
@@ -287,7 +287,68 @@ void VulkanEngine::init_background_pipelines()
 }
 
 void VulkanEngine::init_imgui() {
+    // 1: create descriptor pool for IMGUI
+    //  the size of the pool is very oversize, but it's copied from imgui demo
+    //  itself.
+    VkDescriptorPoolSize pool_sizes[] = { 
+        { VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
+        { VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
+        { VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 } 
+    };
 
+    VkDescriptorPoolCreateInfo pool_info = {};
+    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    // enable freeing individual descriptor sets.
+    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    pool_info.maxSets = 1000;
+    pool_info.poolSizeCount = (uint32_t)std::size(pool_sizes);
+    pool_info.pPoolSizes = pool_sizes;
+
+    VkDescriptorPool imguiPool;
+    VK_CHECK(vkCreateDescriptorPool(_device, &pool_info, nullptr, &imguiPool));
+
+    // 2: initialize imgui library
+
+    // this initializes the core structures of imgui
+    ImGui::CreateContext();
+
+    // this initializes imgui for SDL
+    ImGui_ImplSDL2_InitForVulkan(_window);
+
+    // this initializes imgui for Vulkan
+    ImGui_ImplVulkan_InitInfo init_info = {};
+    init_info.Instance = _instance;
+    init_info.PhysicalDevice = _chosenGPU;
+    init_info.Device = _device;
+    init_info.Queue = _graphicsQueue;
+    init_info.DescriptorPool = imguiPool;
+    init_info.MinImageCount = 3;
+    init_info.ImageCount = 3;
+    init_info.UseDynamicRendering = true;
+
+    //dynamic rendering parameters for imgui to use
+    init_info.PipelineRenderingCreateInfo = { .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
+    init_info.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
+    init_info.PipelineRenderingCreateInfo.pColorAttachmentFormats = &_swapchainImageFormat;
+    init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+
+    ImGui_ImplVulkan_Init(&init_info);
+
+    ImGui_ImplVulkan_CreateFontsTexture();
+
+    // add the destroy the imgui created structures
+    _mainDeletionQueue.push_function([=]() {
+        ImGui_ImplVulkan_Shutdown();
+        vkDestroyDescriptorPool(_device, imguiPool, nullptr);
+    });
 }
 
 void VulkanEngine::create_swapchain(uint32_t width, uint32_t height) {
@@ -420,7 +481,7 @@ void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& f
 
     // submit command buffer to the queue and execute it.
     //  _renderFence will now block until the graphic commands finish execution
-    VK_CHECK(vkQueueSubmit2(_immediateGraphicsQueue, 1, &submit, _immFence));
+    VK_CHECK(vkQueueSubmit2(_graphicsQueue, 1, &submit, _immFence));
     // wait until prior queue submits finish on the CPU.
     VK_CHECK(vkWaitForFences(_device, 1, &_immFence, true, MAX_TIMEOUT));
 }
@@ -503,9 +564,15 @@ void VulkanEngine::draw()
     // execute a copy from the draw image into the swapchain
     vkutil::copy_image_to_image(cmd, currentImage.image, _swapchainImages[swapchainImageIndex], _drawExtent, _swapchainExtent);
 
+    // 
+    vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+    //draw imgui into the swapchain image
+    draw_imgui(cmd, _swapchainImageViews[swapchainImageIndex]);
+
     // transition swapchain image from blit format to presentable format. 
     //  2nd synchronization scope 
-    vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_BLIT_BIT, 0, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, 0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
     //finalize the command buffer (we can no longer add commands, but it can now be executed)
     VK_CHECK(vkEndCommandBuffer(cmd));
@@ -514,11 +581,12 @@ void VulkanEngine::draw()
     //  we want to wait on the _presentSemaphore, as that semaphore is signaled when the swapchain is ready
     //  we will signal the _renderSemaphore, to signal that rendering has finished
     VkCommandBufferSubmitInfo cmdinfo = vkinit::command_buffer_submit_info(cmd);
-    // wait before blit for acquire semaphore signal (second synchronization scope).
+    // wait before blit for acquire semaphore signal (stage specify second synchronization scope).
     VkSemaphoreSubmitInfo waitInfo = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_BLIT_BIT, get_current_frame()._acquireSemaphore);
-    // signal after blit for render semaphore (first synchronization scope).
-    VkSemaphoreSubmitInfo signalInfo = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_BLIT_BIT, get_current_frame()._renderSemaphore);
+    // signal after blit for render semaphore (stage specify first synchronization scope).
+    VkSemaphoreSubmitInfo signalInfo = vkinit::semaphore_submit_info(VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, get_current_frame()._renderSemaphore);
 
+    // submit struct prepare.
     VkSubmitInfo2 submit = vkinit::submit_info(&cmdinfo, &signalInfo, &waitInfo);
 
     //submit command buffer to the queue and execute it.
@@ -544,6 +612,19 @@ void VulkanEngine::draw()
 
     //increase the number of frames drawn
     _frameNumber++;
+}
+
+// render to targetImageView for the UI.
+void VulkanEngine::draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView) {
+    // target image view will be in layout_color_attachment_optimal during rendering.
+    VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(targetImageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    VkRenderingInfo renderInfo = vkinit::rendering_info(_swapchainExtent, &colorAttachment, nullptr);
+
+    vkCmdBeginRendering(cmd, &renderInfo);
+
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
+
+    vkCmdEndRendering(cmd);
 }
 
 void VulkanEngine::run()
@@ -586,6 +667,9 @@ void VulkanEngine::run()
             default:
                 break;
             }
+
+            // send SDL process event.
+            ImGui_ImplSDL2_ProcessEvent(&e);
         }
 
         // do not draw if we are minimized
@@ -594,6 +678,17 @@ void VulkanEngine::run()
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
         }
+
+        // imgui new frame
+        ImGui_ImplVulkan_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
+        ImGui::NewFrame();
+
+        //some imgui UI to test
+        ImGui::ShowDemoWindow();
+
+        //make imgui calculate internal draw structures
+        ImGui::Render();
 
         draw();
     }

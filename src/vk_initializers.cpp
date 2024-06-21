@@ -152,6 +152,7 @@ VkRenderingAttachmentInfo vkinit::attachment_info(
 
     return colorAttachment;
 }
+
 //< color_info
 //> depth_info
 VkRenderingAttachmentInfo vkinit::depth_attachment_info(

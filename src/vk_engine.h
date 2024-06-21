@@ -96,6 +96,8 @@ public:
 	//draw loop
 	void draw();
 
+	void draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView);
+
 	void draw_background(VkCommandBuffer cmd, const FrameData& frame);
 
 	//run main loop
@@ -117,9 +119,6 @@ public:
 	// graphics queue and its family.
 	VkQueue _graphicsQueue;
 	uint32_t _graphicsQueueFamily;
-
-	VkQueue _immediateGraphicsQueue;
-	uint32_t _immediateGraphicsQueueFamily;
 
 	// draw resources
 	VkExtent2D _drawExtent;
