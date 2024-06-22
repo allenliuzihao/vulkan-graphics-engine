@@ -82,7 +82,7 @@ public:
 	// mesh pipeline.
 	VkPipelineLayout _meshPipelineLayout;
 	VkPipeline _meshPipeline;
-	GPUMeshBuffers rectangle;
+	GPUMeshBuffers _meshData;
 
 	// immediate submit structures
 	VkFence _immFence;
@@ -151,6 +151,7 @@ public:
 	std::vector<ComputeEffect> backgroundEffects;
 	int currentBackgroundEffect{ 0 };
 private:
+	void init_default_data();
 	void init_imgui();
 	void init_vulkan();
 	void init_descriptors();

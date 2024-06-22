@@ -1,5 +1,6 @@
 #version 460
 #extension GL_EXT_buffer_reference : require
+#extension GL_EXT_scalar_block_layout : require
 
 layout (location = 0) out vec3 outColor;
 layout (location = 1) out vec2 outUV;
@@ -31,6 +32,7 @@ layout( push_constant ) uniform constants
 void main() 
 {	
 	//load vertex data from device adress
+    //  gl_VertexIndex is the vertex index from the index buffer for the current vertex.
 	Vertex v = PushConstants.vertexBuffer.vertices[gl_VertexIndex];
 
 	//output vertex data
