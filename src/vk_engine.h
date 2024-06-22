@@ -49,6 +49,15 @@ struct ComputePushConstants {
 	//glm::vec4 data4;
 };
 
+struct ComputeEffect {
+	const char* name;
+
+	VkPipeline pipeline;
+	VkPipelineLayout layout;
+
+	ComputePushConstants data;
+};
+
 constexpr uint64_t MAX_TIMEOUT = UINT64_MAX;
 constexpr unsigned int FRAME_OVERLAP = 3;
 
@@ -66,7 +75,6 @@ public:
 	VkSurfaceKHR _surface;// Vulkan window surface
 
 	// pipeline stuff.
-	VkPipeline _gradientPipeline;
 	VkPipelineLayout _gradientPipelineLayout;
 
 	// immediate submit structures
@@ -129,6 +137,10 @@ public:
 
 	// draw resources
 	VkExtent2D _drawExtent;
+
+	// pipeline for drawing.
+	std::vector<ComputeEffect> backgroundEffects;
+	int currentBackgroundEffect{ 0 };
 private:
 	void init_imgui();
 	void init_vulkan();
