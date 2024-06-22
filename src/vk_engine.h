@@ -79,6 +79,10 @@ public:
 	// draw triangle.
 	VkPipelineLayout _trianglePipelineLayout;
 	VkPipeline _trianglePipeline;
+	// mesh pipeline.
+	VkPipelineLayout _meshPipelineLayout;
+	VkPipeline _meshPipeline;
+	GPUMeshBuffers rectangle;
 
 	// immediate submit structures
 	VkFence _immFence;
@@ -155,6 +159,7 @@ private:
 	void init_sync_structures();
 	void init_pipelines();
 	void init_triangle_pipeline();
+	void init_mesh_pipeline();
 	void init_background_pipelines();
 
 	void create_swapchain(uint32_t width, uint32_t height);

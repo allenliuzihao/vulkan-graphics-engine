@@ -238,10 +238,44 @@ void VulkanEngine::init_descriptors()
     });
 }
 
+
 void VulkanEngine::init_pipelines()
 {
     init_triangle_pipeline();
     init_background_pipelines();
+}
+
+void VulkanEngine::init_mesh_pipeline() {
+    // build current folder.
+    std::string triangleVertexShaderPath = (SHADER_ROOT_PATH / "colored_triangle.vert.spv").string();
+    std::string triangleFragmentShaderPath = (SHADER_ROOT_PATH / "colored_triangle.frag.spv").string();
+
+    VkShaderModule triangleFragShader;
+    if (!vkutil::load_shader_module(triangleFragmentShaderPath.c_str(), _device, &triangleFragShader)) {
+        fmt::print("Error when building the triangle fragment shader module");
+    } else {
+        fmt::print("Triangle fragment shader succesfully loaded");
+    }
+
+    VkShaderModule triangleVertexShader;
+    if (!vkutil::load_shader_module(triangleVertexShaderPath.c_str(), _device, &triangleVertexShader)) {
+        fmt::print("Error when building the triangle vertex shader module");
+    } else {
+        fmt::print("Triangle vertex shader succesfully loaded");
+    }
+
+    VkPushConstantRange bufferRange{};
+    bufferRange.offset = 0;
+    bufferRange.size = sizeof(GPUDrawPushConstants);
+    bufferRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
+    pipeline_layout_info.pPushConstantRanges = &bufferRange;
+    pipeline_layout_info.pushConstantRangeCount = 1;
+
+    VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &_meshPipelineLayout));
+
+
 }
 
 void VulkanEngine::init_triangle_pipeline() {

@@ -4,6 +4,7 @@
 layout (location = 0) out vec3 outColor;
 layout (location = 1) out vec2 outUV;
 
+// buffer reference doesn't need descriptor set.
 struct Vertex {
 	vec3 position;
 	float uv_x;
@@ -13,6 +14,8 @@ struct Vertex {
 };
 
 // VertexBuffer is used from buffer address.
+//  CRUCIAL: this isn't descriptor set. This specify how shader parses the pointer passed into the push constant.
+//  
 layout(buffer_reference, scalar) readonly buffer VertexBuffer { 
 	Vertex vertices[];
 };
