@@ -76,6 +76,9 @@ public:
 
 	// pipeline stuff.
 	VkPipelineLayout _gradientPipelineLayout;
+	// draw triangle.
+	VkPipelineLayout _trianglePipelineLayout;
+	VkPipeline _trianglePipeline;
 
 	// immediate submit structures
 	VkFence _immFence;
@@ -115,6 +118,8 @@ public:
 
 	void draw_background(VkCommandBuffer cmd, const FrameData& frame);
 
+	void draw_geometry(VkCommandBuffer cmd, const FrameData& frame);
+
 	//run main loop
 	void run();
 
@@ -149,6 +154,7 @@ private:
 	void init_commands();
 	void init_sync_structures();
 	void init_pipelines();
+	void init_triangle_pipeline();
 	void init_background_pipelines();
 
 	void create_swapchain(uint32_t width, uint32_t height);

@@ -240,7 +240,67 @@ void VulkanEngine::init_descriptors()
 
 void VulkanEngine::init_pipelines()
 {
+    init_triangle_pipeline();
     init_background_pipelines();
+}
+
+void VulkanEngine::init_triangle_pipeline() {
+    // build current folder.
+    std::string triangleVertexShaderPath = (SHADER_ROOT_PATH / "colored_triangle.vert.spv").string();
+    std::string triangleFragmentShaderPath = (SHADER_ROOT_PATH / "colored_triangle.frag.spv").string();
+
+    VkShaderModule triangleFragShader;
+    if (!vkutil::load_shader_module(triangleFragmentShaderPath.c_str(), _device, &triangleFragShader)) {
+        fmt::print("Error when building the triangle fragment shader module");
+    } else {
+        fmt::print("Triangle fragment shader succesfully loaded");
+    }
+
+    VkShaderModule triangleVertexShader;
+    if (!vkutil::load_shader_module(triangleVertexShaderPath.c_str(), _device, &triangleVertexShader)) {
+        fmt::print("Error when building the triangle vertex shader module");
+    } else {
+        fmt::print("Triangle vertex shader succesfully loaded");
+    }
+
+    //build the pipeline layout that controls the inputs/outputs of the shader
+    //we are not using descriptor sets or other systems yet, so no need to use anything other than empty default
+    VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
+    VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &_trianglePipelineLayout));
+
+    PipelineBuilder pipelineBuilder;
+    //use the triangle layout we created
+    pipelineBuilder._pipelineLayout = _trianglePipelineLayout;
+    //connecting the vertex and pixel shaders to the pipeline
+    pipelineBuilder.set_shaders(triangleVertexShader, triangleFragShader);
+    //it will draw triangles
+    pipelineBuilder.set_input_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    //filled triangles
+    pipelineBuilder.set_polygon_mode(VK_POLYGON_MODE_FILL);
+    //no backface culling
+    pipelineBuilder.set_cull_mode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
+    //no multisampling
+    pipelineBuilder.set_multisampling_none();
+    //no blending
+    pipelineBuilder.disable_blending();
+    //no depth testing
+    pipelineBuilder.disable_depthtest();
+
+    //connect the image format we will draw into, from draw image
+    pipelineBuilder.set_color_attachment_format(_frames[0]._drawImage.imageFormat);
+    pipelineBuilder.set_depth_format(VK_FORMAT_UNDEFINED);
+
+    //finally build the pipeline
+    _trianglePipeline = pipelineBuilder.build_pipeline(_device);
+
+    //clean structures
+    vkDestroyShaderModule(_device, triangleFragShader, nullptr);
+    vkDestroyShaderModule(_device, triangleVertexShader, nullptr);
+
+    _mainDeletionQueue.push_function([=]() {
+        vkDestroyPipeline(_device, _trianglePipeline, nullptr);
+        vkDestroyPipelineLayout(_device, _trianglePipelineLayout, nullptr);
+    });
 }
 
 void VulkanEngine::init_background_pipelines()
@@ -565,6 +625,44 @@ void VulkanEngine::draw_background(VkCommandBuffer cmd, const FrameData& frame) 
     vkCmdDispatch(cmd, DISPATCH_X, DISPATCH_Y, 1);
 }
 
+void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
+{
+    //begin a render pass  connected to our draw image
+    VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(frame._drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+    VkRenderingInfo renderInfo = vkinit::rendering_info(_drawExtent, &colorAttachment, nullptr);
+    vkCmdBeginRendering(cmd, &renderInfo);
+
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
+
+    float width = static_cast<float>(_drawExtent.width);
+    float height = static_cast<float>(_drawExtent.height);
+
+    //set dynamic viewport and scissor
+    VkViewport viewport = {};
+    viewport.x = 0;
+    viewport.y = 0;
+    viewport.width = width;
+    viewport.height = height;
+    viewport.minDepth = 0.f;
+    viewport.maxDepth = 1.f;
+
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+    VkRect2D scissor = {};
+    scissor.offset.x = 0;
+    scissor.offset.y = 0;
+    scissor.extent.width = _drawExtent.width;
+    scissor.extent.height = _drawExtent.height;
+
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+    //launch a draw command to draw 3 vertices
+    vkCmdDraw(cmd, 3, 1, 0, 0);
+
+    vkCmdEndRendering(cmd);
+}
+
 void VulkanEngine::draw()
 {
     // wait until the gpu has finished rendering the last frame. Timeout of 1
@@ -610,8 +708,12 @@ void VulkanEngine::draw()
     // clear background color.
     draw_background(cmd, currentFrame);
     
+    vkutil::transition_image(cmd, currentImage.image, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+    draw_geometry(cmd, currentFrame);
+
     // transfer draw image and swapchin image to transfer layouts.
-    vkutil::transition_image(cmd, currentImage.image, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+    vkutil::transition_image(cmd, currentImage.image, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
     
     // acquire semaphore waits in the blit stage, so the first synchronization scope should be blit as well from the semaphore wait.
     vkutil::transition_image(cmd, _swapchainImages[swapchainImageIndex], VK_PIPELINE_STAGE_2_BLIT_BIT, 0, VK_PIPELINE_STAGE_2_BLIT_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);

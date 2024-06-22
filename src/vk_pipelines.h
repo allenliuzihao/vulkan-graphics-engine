@@ -22,7 +22,7 @@ public:
     PipelineBuilder() { clear(); }
 
     void set_shaders(VkShaderModule vertexShader, VkShaderModule fragmentShader);
-    void set_input_topoloy(VkPrimitiveTopology topology);
+    void set_input_topology(VkPrimitiveTopology topology);
     void set_polygon_mode(VkPolygonMode mode);
     void set_cull_mode(VkCullModeFlags cullMode, VkFrontFace frontFace);
     void set_multisampling_none();
@@ -30,7 +30,6 @@ public:
     void set_depth_format(VkFormat format);
     void disable_depthtest();
     void disable_blending();
-
 
     void clear();
 

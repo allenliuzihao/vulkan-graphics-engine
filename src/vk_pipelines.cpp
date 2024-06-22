@@ -134,7 +134,7 @@ void PipelineBuilder::set_shaders(VkShaderModule vertexShader, VkShaderModule fr
         vkinit::pipeline_shader_stage_create_info(VK_SHADER_STAGE_FRAGMENT_BIT, fragmentShader));
 }
 
-void PipelineBuilder::set_input_topoloy(VkPrimitiveTopology topology)
+void PipelineBuilder::set_input_topology(VkPrimitiveTopology topology)
 {
     _inputAssembly.topology = topology;
     // we are not going to use primitive restart on the entire tutorial so leave
