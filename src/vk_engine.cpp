@@ -521,6 +521,8 @@ void VulkanEngine::destroy_buffer(const AllocatedBuffer& buffer)
 
 // span is pointer + size pair, it doesn't copy the data from array or vector.
 //  it specifies a sequence of items.
+// Optimization: 
+//  put this on a background thread and then send copies to the transfer queue. 
 GPUMeshBuffers VulkanEngine::uploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices) {
     const size_t vertexBufferSize = vertices.size() * sizeof(Vertex);
     const size_t indexBufferSize = indices.size() * sizeof(uint32_t);
