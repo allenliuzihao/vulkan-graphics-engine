@@ -1049,19 +1049,21 @@ void VulkanEngine::run()
         ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
 
-        if (ImGui::Begin("background")) {
+        if (ImGui::Begin("UI")) {
+            ImGui::Begin("Background");
             ComputeEffect& selected = backgroundEffects[currentBackgroundEffect];
             ImGui::Text("Selected effect: ", selected.name);
             ImGui::SliderInt("Effect Index", &currentBackgroundEffect, 0, std::max(0, ((int) backgroundEffects.size()) - 1));
 
             ImGui::InputFloat4("data1", (float*)&selected.data.data1);
             ImGui::InputFloat4("data2", (float*)&selected.data.data2);
-        }
-        ImGui::End();
-        if (ImGui::Begin("meshes")) {
-            auto& selected = _testMeshes[currentMesh];
-            ImGui::Text("Selected mesh: ", selected->name);
+            ImGui::End();
+
+            ImGui::Begin("Meshes");
+            auto& meshesSelected = _testMeshes[currentMesh];
+            ImGui::Text("Selected mesh: ", meshesSelected->name);
             ImGui::SliderInt("Mesh Index", &currentMesh, 0, std::max(0, ((int)_testMeshes.size()) - 1));
+            ImGui::End();
         }
         ImGui::End();
 
