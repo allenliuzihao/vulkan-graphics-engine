@@ -131,6 +131,7 @@ public:
 
 	FrameData& get_active_frame(uint32_t acquiredImageIndex) { return _frames[acquiredImageIndex % FRAME_OVERLAP]; };
 	FrameData& get_current_frame() { return _frames[_frameNumber % FRAME_OVERLAP]; };
+	GPUMeshBuffers uploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
 
 	DeletionQueue _mainDeletionQueue;
 
@@ -169,6 +170,4 @@ private:
 	// create buffer.
 	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
 	void destroy_buffer(const AllocatedBuffer& buffer);
-
-	GPUMeshBuffers uploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
 };
