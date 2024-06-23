@@ -17,6 +17,8 @@
 #include "imgui_impl_sdl2.h"
 #include "imgui_impl_vulkan.h"
 
+#include <glm/gtx/transform.hpp>
+
 #include <chrono>
 #include <thread>
 #include <numbers>
@@ -849,8 +851,8 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
     GPUDrawPushConstants push_constants;
-    push_constants.worldMatrix = glm::mat4{ 1.f };  // identity matrix.
     // dynamic rendering
+    push_constants.worldMatrix = glm::mat4(1.0);
     push_constants.vertexBuffer = _meshData.vertexBufferAddress;
     vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
     vkCmdBindIndexBuffer(cmd, _meshData.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
@@ -858,6 +860,13 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     
     // draw gltf geometries. 
     auto& mesh = _testMeshes[currentMesh];
+    glm::mat4 view = glm::mat4{ 1.f };  // identity matrix.
+    view = glm::translate(view, glm::vec3{ 0, 0, -5 });
+    // camera projection, reverse z.
+    glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)_drawExtent.width / (float)_drawExtent.height, 10000.f, 0.1f);
+    // invert the Y direction on projection matrix so that we are more similar to opengl and gltf axis
+    projection[1][1] *= -1;
+    push_constants.worldMatrix = projection * view;
     push_constants.vertexBuffer = mesh->meshBuffers.vertexBufferAddress;
     vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
     
