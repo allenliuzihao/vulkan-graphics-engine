@@ -551,10 +551,18 @@ void VulkanEngine::init_default_data() {
     // rect_vertices and rect_indices are passed in as pointers + sizes.
     _meshData = uploadMesh(rect_indices, rect_vertices);
 
+    std::string gltfFilePath = (ASSET_ROOT_PATH / "basicmesh.glb").string();
+    _testMeshes = loadGltfMeshes(this, gltfFilePath).value();
+
     //delete the rectangle data on engine shutdown
     _mainDeletionQueue.push_function([&]() {
         destroy_buffer(_meshData.indexBuffer);
         destroy_buffer(_meshData.vertexBuffer);
+
+        for (auto& testMesh : _testMeshes) {
+            destroy_buffer(testMesh->meshBuffers.indexBuffer);
+            destroy_buffer(testMesh->meshBuffers.vertexBuffer);
+        }
     });
 }
 
@@ -703,9 +711,9 @@ void VulkanEngine::init()
 
     init_pipelines();
 
-    init_imgui();
-
     init_default_data();
+
+    init_imgui();
 
     // everything went fine
     _isInitialized = true;
@@ -827,7 +835,6 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     viewport.height = height;
     viewport.minDepth = 0.f;
     viewport.maxDepth = 1.f;
-
     vkCmdSetViewport(cmd, 0, 1, &viewport);
 
     VkRect2D scissor = {};
@@ -835,22 +842,31 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     scissor.offset.y = 0;
     scissor.extent.width = _drawExtent.width;
     scissor.extent.height = _drawExtent.height;
-
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
     //launch a draw command to draw 3 vertices
     vkCmdDraw(cmd, 3, 1, 0, 0);
 
-    // dynamic rendering
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
-
     GPUDrawPushConstants push_constants;
     push_constants.worldMatrix = glm::mat4{ 1.f };  // identity matrix.
+    // dynamic rendering
     push_constants.vertexBuffer = _meshData.vertexBufferAddress;
     vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
-
     vkCmdBindIndexBuffer(cmd, _meshData.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
+    
+    // draw gltf geometries. 
+    auto& mesh = _testMeshes[currentMesh];
+    push_constants.vertexBuffer = mesh->meshBuffers.vertexBufferAddress;
+    vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
+    
+    // index buffer for all submeshes in this mesh.
+    vkCmdBindIndexBuffer(cmd, mesh->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+    // draw each submesh of this mesh.
+    for (auto& surface : mesh->surfaces) {
+        vkCmdDrawIndexed(cmd, surface.count, 1, surface.startIndex, 0, 0);
+    }
 
     vkCmdEndRendering(cmd);
 }
@@ -1040,6 +1056,12 @@ void VulkanEngine::run()
 
             ImGui::InputFloat4("data1", (float*)&selected.data.data1);
             ImGui::InputFloat4("data2", (float*)&selected.data.data2);
+        }
+        ImGui::End();
+        if (ImGui::Begin("meshes")) {
+            auto& selected = _testMeshes[currentMesh];
+            ImGui::Text("Selected mesh: ", selected->name);
+            ImGui::SliderInt("Mesh Index", &currentMesh, 0, std::max(0, ((int)_testMeshes.size()) - 1));
         }
         ImGui::End();
 

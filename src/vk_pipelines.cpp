@@ -85,6 +85,8 @@ VkPipeline PipelineBuilder::build_pipeline(VkDevice device)
     colorBlending.pAttachments = &_colorBlendAttachment;
 
     // completely clear VertexInputStateCreateInfo, as we have no need for it
+    //  this step has been skipped as they load vertices from buffer device address
+    //  without descriptor set or fixed function input hardware. 
     VkPipelineVertexInputStateCreateInfo _vertexInputInfo = { .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
 
     // build the actual pipeline

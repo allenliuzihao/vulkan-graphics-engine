@@ -5,6 +5,7 @@
 
 #include <vk_types.h>
 #include <vk_descriptors.h>
+#include <vk_loader.h>
 
 #include <filesystem>
 
@@ -65,6 +66,9 @@ constexpr unsigned int FRAME_OVERLAP = 3;
 const auto CURRENT_SOURCE_PATH = std::filesystem::current_path();
 const auto PROJECT_ROOT_PATH = CURRENT_SOURCE_PATH.parent_path().parent_path();
 const auto SHADER_ROOT_PATH = PROJECT_ROOT_PATH / "shaders";
+const auto ASSET_ROOT_PATH = PROJECT_ROOT_PATH / "assets";
+
+struct MeshAsset;
 
 class VulkanEngine {
 public:
@@ -151,6 +155,9 @@ public:
 	// pipeline for drawing.
 	std::vector<ComputeEffect> backgroundEffects;
 	int currentBackgroundEffect{ 0 };
+
+	std::vector<std::shared_ptr<MeshAsset>> _testMeshes;
+	int currentMesh { 0 };
 private:
 	void init_default_data();
 	void init_imgui();

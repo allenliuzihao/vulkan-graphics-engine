@@ -50,7 +50,7 @@ std::optional<std::vector<std::shared_ptr<MeshAsset>>> loadGltfMeshes(VulkanEngi
             // offset index by this for this submesh. 
             size_t initial_vtx = vertices.size();
 
-            uint32_t numVertices = 0;
+            size_t numVertices = 0;
 
             // load indexes from gltf for this submesh.
             {
