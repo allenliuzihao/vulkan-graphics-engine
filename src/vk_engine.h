@@ -37,8 +37,8 @@ struct FrameData {
 	VkCommandPool _commandPool;
 	VkCommandBuffer _mainCommandBuffer;
 
-	AllocatedImage _drawImage;
-	VkDescriptorSet		_drawImageDescriptors;
+	AllocatedImage _drawImage, _depthImage;
+	VkDescriptorSet _drawImageDescriptors;
 
 	DeletionQueue _deletionQueue;
 };

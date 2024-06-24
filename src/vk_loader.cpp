@@ -48,7 +48,7 @@ std::optional<std::vector<std::shared_ptr<MeshAsset>>> loadGltfMeshes(VulkanEngi
             newSurface.count = (uint32_t)gltf.accessors[p.indicesAccessor.value()].count;
 
             // offset index by this for this submesh. 
-            size_t initial_vtx = vertices.size();
+            uint32_t initial_vtx = static_cast<uint32_t>(vertices.size());
 
             size_t numVertices = 0;
 

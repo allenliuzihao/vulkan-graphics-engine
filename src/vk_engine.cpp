@@ -134,10 +134,29 @@ void VulkanEngine::init_swapchain()
         VkImageViewCreateInfo rview_info = vkinit::imageview_create_info(_frames[i]._drawImage.imageFormat, _frames[i]._drawImage.image, VK_IMAGE_ASPECT_COLOR_BIT);
         VK_CHECK(vkCreateImageView(_device, &rview_info, nullptr, &_frames[i]._drawImage.imageView));
 
+        // add depth image
+        _frames[i]._depthImage.imageFormat = VK_FORMAT_D32_SFLOAT;
+        _frames[i]._depthImage.imageExtent = drawImageExtent;
+        VkImageUsageFlags depthImageUsages{};
+        depthImageUsages |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+        VkImageCreateInfo dimg_info = vkinit::image_create_info(_frames[i]._depthImage.imageFormat, depthImageUsages, drawImageExtent);
+
+        //allocate and create the image
+        vmaCreateImage(_allocator, &dimg_info, &rimg_allocinfo, &_frames[i]._depthImage.image, &_frames[i]._depthImage.allocation, nullptr);
+
+        //build a image-view for the draw image to use for rendering
+        VkImageViewCreateInfo dview_info = vkinit::imageview_create_info(_frames[i]._depthImage.imageFormat, _frames[i]._depthImage.image, VK_IMAGE_ASPECT_DEPTH_BIT);
+        VK_CHECK(vkCreateImageView(_device, &dview_info, nullptr, &_frames[i]._depthImage.imageView));
+
         //add to deletion queues
         _mainDeletionQueue.push_function([=]() {
             vkDestroyImageView(_device, _frames[i]._drawImage.imageView, nullptr);
             vmaDestroyImage(_allocator, _frames[i]._drawImage.image, _frames[i]._drawImage.allocation);
+
+            vkDestroyImageView(_device, _frames[i]._depthImage.imageView, nullptr);
+            // free image and its allocation memory.
+            vmaDestroyImage(_allocator, _frames[i]._depthImage.image, _frames[i]._depthImage.allocation);
         });
     }
 }
@@ -243,8 +262,8 @@ void VulkanEngine::init_descriptors()
 
 void VulkanEngine::init_pipelines()
 {
-    init_triangle_pipeline();
     init_background_pipelines();
+    init_triangle_pipeline();
     init_mesh_pipeline();
 }
 
@@ -293,12 +312,12 @@ void VulkanEngine::init_mesh_pipeline() {
     pipelineBuilder.set_multisampling_none();
     //no blending
     pipelineBuilder.disable_blending();
-
-    pipelineBuilder.disable_depthtest();
+    // reverse Z.
+    pipelineBuilder.enable_depthtest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);
 
     //connect the image format we will draw into, from draw image
     pipelineBuilder.set_color_attachment_format(_frames[0]._drawImage.imageFormat);
-    pipelineBuilder.set_depth_format(VK_FORMAT_UNDEFINED);
+    pipelineBuilder.set_depth_format(_frames[0]._depthImage.imageFormat);
 
     //finally build the pipeline
     _meshPipeline = pipelineBuilder.build_pipeline(_device);
@@ -357,7 +376,7 @@ void VulkanEngine::init_triangle_pipeline() {
 
     //connect the image format we will draw into, from draw image
     pipelineBuilder.set_color_attachment_format(_frames[0]._drawImage.imageFormat);
-    pipelineBuilder.set_depth_format(VK_FORMAT_UNDEFINED);
+    pipelineBuilder.set_depth_format(_frames[0]._depthImage.imageFormat);
 
     //finally build the pipeline
     _trianglePipeline = pipelineBuilder.build_pipeline(_device);
@@ -533,6 +552,7 @@ void VulkanEngine::init_imgui() {
 
 void VulkanEngine::init_default_data() {
     std::array<Vertex, 4> rect_vertices;
+    // furthrest. 
     rect_vertices[0].position = { 0.5,-0.5, 0 };
     rect_vertices[1].position = { 0.5,0.5, 0 };
     rect_vertices[2].position = { -0.5,-0.5, 0 };
@@ -820,8 +840,9 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
 {
     //begin a render pass  connected to our draw image
     VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(frame._drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    VkRenderingAttachmentInfo depthAttachment = vkinit::depth_attachment_info(frame._depthImage.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
-    VkRenderingInfo renderInfo = vkinit::rendering_info(_drawExtent, &colorAttachment, nullptr);
+    VkRenderingInfo renderInfo = vkinit::rendering_info(_drawExtent, &colorAttachment, &depthAttachment);
     vkCmdBeginRendering(cmd, &renderInfo);
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
@@ -912,6 +933,7 @@ void VulkanEngine::draw()
     // why one image here is sufficient?
     auto& currentFrame = get_current_frame();
     auto& currentImage = currentFrame._drawImage;
+    auto& currentDepthImage = currentFrame._depthImage;
     _drawExtent.width = currentImage.imageExtent.width;
     _drawExtent.height = currentImage.imageExtent.height;
 
@@ -926,6 +948,9 @@ void VulkanEngine::draw()
     draw_background(cmd, currentFrame);
     
     vkutil::transition_image(cmd, currentImage.image, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT, VK_ACCESS_2_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+    // wait until prior usage of the depth image to complete.
+    vkutil::transition_image(cmd, currentDepthImage.image, VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT, VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
 
     draw_geometry(cmd, currentFrame);
 
