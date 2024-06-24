@@ -151,6 +151,7 @@ public:
 
 	// draw resources
 	VkExtent2D _drawExtent;
+	float renderScale = 1.f;
 
 	// pipeline for drawing.
 	std::vector<ComputeEffect> backgroundEffects;

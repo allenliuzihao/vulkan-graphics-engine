@@ -924,6 +924,10 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
 
 void VulkanEngine::draw()
 {
+    // upsampling only from draw image to swapchain. 
+    _drawExtent.height = std::min(_swapchainExtent.height, get_current_frame()._drawImage.imageExtent.height) * renderScale;
+    _drawExtent.width = std::min(_swapchainExtent.width, get_current_frame()._drawImage.imageExtent.width) * renderScale;
+
     // wait until the gpu has finished rendering the last frame. Timeout of 1
     //  meaning current frame GPU resources are reset and ready for reuse.
     VK_CHECK(vkWaitForFences(_device, 1, &get_current_frame()._renderFence, true, MAX_TIMEOUT));
@@ -959,8 +963,6 @@ void VulkanEngine::draw()
     auto& currentFrame = get_current_frame();
     auto& currentImage = currentFrame._drawImage;
     auto& currentDepthImage = currentFrame._depthImage;
-    _drawExtent.width = currentImage.imageExtent.width;
-    _drawExtent.height = currentImage.imageExtent.height;
 
     //start the command buffer recording
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
@@ -1122,6 +1124,8 @@ void VulkanEngine::run()
             auto& meshesSelected = _testMeshes[currentMesh];
             ImGui::Text("Selected mesh: ", meshesSelected->name);
             ImGui::SliderInt("Mesh Index", &currentMesh, 0, std::max(0, ((int)_testMeshes.size()) - 1));
+            
+            ImGui::SliderFloat("Render Scale", &renderScale, 0.3f, 1.0f);
         }
         ImGui::End();
 
