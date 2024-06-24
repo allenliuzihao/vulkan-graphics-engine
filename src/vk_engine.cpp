@@ -578,9 +578,12 @@ void VulkanEngine::init_default_data() {
 
     //delete the rectangle data on engine shutdown
     _mainDeletionQueue.push_function([&]() {
+        fmt::println("delete allocated meshes from index and vertex buffers.");
         destroy_buffer(_meshData.indexBuffer);
         destroy_buffer(_meshData.vertexBuffer);
 
+        // delete allocated meshes.
+        fmt::println("delete allocated meshes from gltf.");
         for (auto& testMesh : _testMeshes) {
             destroy_buffer(testMesh->meshBuffers.indexBuffer);
             destroy_buffer(testMesh->meshBuffers.vertexBuffer);
@@ -897,7 +900,6 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     for (auto& surface : mesh->surfaces) {
         vkCmdDrawIndexed(cmd, surface.count, 1, surface.startIndex, 0, 0);
     }
-
     vkCmdEndRendering(cmd);
 }
 
