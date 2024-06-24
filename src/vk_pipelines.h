@@ -32,6 +32,9 @@ public:
     void enable_depthtest(bool depthWriteEnable, VkCompareOp op);
     void disable_blending();
 
+    void enable_blending_additive();
+    void enable_blending_alphablend();
+
     void clear();
 
     VkPipeline build_pipeline(VkDevice device);
