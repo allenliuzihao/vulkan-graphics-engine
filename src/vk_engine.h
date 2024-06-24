@@ -158,6 +158,8 @@ public:
 
 	std::vector<std::shared_ptr<MeshAsset>> _testMeshes;
 	int currentMesh { 0 };
+
+	bool resize_requested;
 private:
 	void init_default_data();
 	void init_imgui();
@@ -173,6 +175,7 @@ private:
 
 	void create_swapchain(uint32_t width, uint32_t height);
 	void destroy_swapchain();
+	void resize_swapchain();
 
 	// create buffer.
 	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);

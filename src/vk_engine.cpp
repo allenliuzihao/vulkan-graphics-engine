@@ -596,6 +596,7 @@ void VulkanEngine::init_default_data() {
 void VulkanEngine::create_swapchain(uint32_t width, uint32_t height) {
     vkb::SwapchainBuilder swapchainBuilder{ _chosenGPU, _device, _surface };
 
+    // this appear to be swizzled, but GPU will store image in this format. However, in shader, RGB is still treated as RGB. 
     _swapchainImageFormat = VK_FORMAT_B8G8R8A8_UNORM;
 
     vkb::Swapchain vkbSwapchain = swapchainBuilder
@@ -614,6 +615,24 @@ void VulkanEngine::create_swapchain(uint32_t width, uint32_t height) {
     _swapchainImages = vkbSwapchain.get_images().value();
     _swapchainImageViews = vkbSwapchain.get_image_views().value();
 }
+
+void VulkanEngine::resize_swapchain() {
+    vkDeviceWaitIdle(_device);
+
+    // when swapchain gives out of date error, there might be outgoing GPU work on swapchain images.
+    //  wait for those work to finsih before destroy swapchain resources.
+    destroy_swapchain();
+
+    int w, h;
+    SDL_GetWindowSize(_window, &w, &h);
+    _windowExtent.width = w;
+    _windowExtent.height = h;
+
+    create_swapchain(_windowExtent.width, _windowExtent.height);
+
+    resize_requested = false;
+}
+
 
 void VulkanEngine::destroy_swapchain() {
     // destroy swapchain resources
@@ -716,7 +735,7 @@ void VulkanEngine::init()
     // We initialize SDL and create a window with it.
     SDL_Init(SDL_INIT_VIDEO);
 
-    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN);
+    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 
     _window = SDL_CreateWindow(
         "Vulkan Engine",
@@ -917,7 +936,11 @@ void VulkanEngine::draw()
     // request image from the swapchain
     uint32_t swapchainImageIndex;
     // if acquireSemaphore is signaled on GPU, it means prior rendering to this swapchainImageIndex has finished presentation and all the work.
-    VK_CHECK(vkAcquireNextImageKHR(_device, _swapchain, MAX_TIMEOUT, get_current_frame()._acquireSemaphore, nullptr, &swapchainImageIndex));
+    VkResult e = vkAcquireNextImageKHR(_device, _swapchain, MAX_TIMEOUT, get_current_frame()._acquireSemaphore, nullptr, &swapchainImageIndex);
+    if (e == VK_ERROR_OUT_OF_DATE_KHR) {
+        resize_requested = true;
+        return;
+    }
 
     //naming it cmd for shorter writing
     VkCommandBuffer cmd = get_current_frame()._mainCommandBuffer;
@@ -1003,13 +1026,16 @@ void VulkanEngine::draw()
     presentInfo.pNext = nullptr;
     presentInfo.pSwapchains = &_swapchain;
     presentInfo.swapchainCount = 1;
-
     presentInfo.pWaitSemaphores = &get_current_frame()._renderSemaphore;
     presentInfo.waitSemaphoreCount = 1;
-
     presentInfo.pImageIndices = &swapchainImageIndex;
 
-    VK_CHECK(vkQueuePresentKHR(_graphicsQueue, &presentInfo));
+    // submit to present queue.
+    e = vkQueuePresentKHR(_graphicsQueue, &presentInfo);
+    if (e == VK_ERROR_OUT_OF_DATE_KHR) {
+        resize_requested = true;
+        return;
+    }
 
     //increase the number of frames drawn
     _frameNumber++;
@@ -1086,20 +1112,16 @@ void VulkanEngine::run()
         ImGui::NewFrame();
 
         if (ImGui::Begin("UI")) {
-            ImGui::Begin("Background");
             ComputeEffect& selected = backgroundEffects[currentBackgroundEffect];
             ImGui::Text("Selected effect: ", selected.name);
             ImGui::SliderInt("Effect Index", &currentBackgroundEffect, 0, std::max(0, ((int) backgroundEffects.size()) - 1));
 
             ImGui::InputFloat4("data1", (float*)&selected.data.data1);
             ImGui::InputFloat4("data2", (float*)&selected.data.data2);
-            ImGui::End();
 
-            ImGui::Begin("Meshes");
             auto& meshesSelected = _testMeshes[currentMesh];
             ImGui::Text("Selected mesh: ", meshesSelected->name);
             ImGui::SliderInt("Mesh Index", &currentMesh, 0, std::max(0, ((int)_testMeshes.size()) - 1));
-            ImGui::End();
         }
         ImGui::End();
 
@@ -1107,5 +1129,9 @@ void VulkanEngine::run()
         ImGui::Render();
 
         draw();
+
+        if (resize_requested) {
+            resize_swapchain();
+        }
     }
 }
