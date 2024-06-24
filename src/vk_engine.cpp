@@ -263,7 +263,7 @@ void VulkanEngine::init_descriptors()
 void VulkanEngine::init_pipelines()
 {
     init_background_pipelines();
-    init_triangle_pipeline();
+    //init_triangle_pipeline();
     init_mesh_pipeline();
 }
 
@@ -551,6 +551,7 @@ void VulkanEngine::init_imgui() {
 }
 
 void VulkanEngine::init_default_data() {
+    /*
     std::array<Vertex, 4> rect_vertices;
     // furthrest. 
     rect_vertices[0].position = { 0.5,-0.5, 0 };
@@ -572,15 +573,16 @@ void VulkanEngine::init_default_data() {
     rect_indices[5] = 3;
     // rect_vertices and rect_indices are passed in as pointers + sizes.
     _meshData = uploadMesh(rect_indices, rect_vertices);
+    */
 
     std::string gltfFilePath = (ASSET_ROOT_PATH / "basicmesh.glb").string();
     _testMeshes = loadGltfMeshes(this, gltfFilePath).value();
 
     //delete the rectangle data on engine shutdown
     _mainDeletionQueue.push_function([&]() {
-        fmt::println("delete allocated meshes from index and vertex buffers.");
-        destroy_buffer(_meshData.indexBuffer);
-        destroy_buffer(_meshData.vertexBuffer);
+        //fmt::println("delete allocated meshes from index and vertex buffers.");
+        //destroy_buffer(_meshData.indexBuffer);
+        //destroy_buffer(_meshData.vertexBuffer);
 
         // delete allocated meshes.
         fmt::println("delete allocated meshes from gltf.");
@@ -847,12 +849,12 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
 
     VkRenderingInfo renderInfo = vkinit::rendering_info(_drawExtent, &colorAttachment, &depthAttachment);
     vkCmdBeginRendering(cmd, &renderInfo);
-
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
+    //vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _trianglePipeline);
 
     float width = static_cast<float>(_drawExtent.width);
     float height = static_cast<float>(_drawExtent.height);
 
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
     //set dynamic viewport and scissor
     VkViewport viewport = {};
     viewport.x = 0;
@@ -869,19 +871,16 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     scissor.extent.width = _drawExtent.width;
     scissor.extent.height = _drawExtent.height;
     vkCmdSetScissor(cmd, 0, 1, &scissor);
-
     //launch a draw command to draw 3 vertices
+    /*
     vkCmdDraw(cmd, 3, 1, 0, 0);
-
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
-    GPUDrawPushConstants push_constants;
     // dynamic rendering
     push_constants.worldMatrix = glm::mat4(1.0);
     push_constants.vertexBuffer = _meshData.vertexBufferAddress;
     vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
     vkCmdBindIndexBuffer(cmd, _meshData.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
-    
+    */
     // draw gltf geometries. 
     auto& mesh = _testMeshes[currentMesh];
     glm::mat4 view = glm::mat4{ 1.f };  // identity matrix.
@@ -890,10 +889,11 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)_drawExtent.width / (float)_drawExtent.height, 10000.f, 0.1f);
     // invert the Y direction on projection matrix so that we are more similar to opengl and gltf axis
     projection[1][1] *= -1;
+
+    GPUDrawPushConstants push_constants;
     push_constants.worldMatrix = projection * view;
     push_constants.vertexBuffer = mesh->meshBuffers.vertexBufferAddress;
     vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
-    
     // index buffer for all submeshes in this mesh.
     vkCmdBindIndexBuffer(cmd, mesh->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
     // draw each submesh of this mesh.
