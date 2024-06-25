@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <cmath>
 #include <vk_types.h>
 
 struct DescriptorLayoutBuilder {
@@ -22,4 +23,26 @@ struct DescriptorAllocator {
     void clear_descriptors(VkDevice device);
     void destroy_pool(VkDevice device);
     VkDescriptorSet allocate(VkDevice device, VkDescriptorSetLayout layout);
+};
+
+struct DescriptorAllocatorGrowable {
+public:
+    struct PoolSizeRatio {
+        VkDescriptorType type;
+        float ratio;
+    };
+
+    void init(VkDevice device, uint32_t initialSets, std::span<PoolSizeRatio> poolRatios);
+    void clear_pools(VkDevice device);
+    void destroy_pools(VkDevice device);
+
+    VkDescriptorSet allocate(VkDevice device, VkDescriptorSetLayout layout, void* pNext = nullptr);
+private:
+    VkDescriptorPool get_pool(VkDevice device);
+    VkDescriptorPool create_pool(VkDevice device, uint32_t setCount, std::span<PoolSizeRatio> poolRatios);
+
+    std::vector<PoolSizeRatio> ratios;
+    std::vector<VkDescriptorPool> fullPools;        // these are full, does not allocate anymore.
+    std::vector<VkDescriptorPool> readyPools;       // useful pools that can be used. 
+    uint32_t setsPerPool;
 };
