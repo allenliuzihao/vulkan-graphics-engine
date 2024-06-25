@@ -231,6 +231,14 @@ void VulkanEngine::init_descriptors()
         _drawImageDescriptorLayout = builder.build(_device, VK_SHADER_STAGE_COMPUTE_BIT);
     }
 
+    // create a descriptor pool
+    std::vector<DescriptorAllocatorGrowable::PoolSizeRatio> frame_sizes = {
+        { VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3 },
+        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 },
+        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 3 },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 4 },
+    };
+
     for (uint32_t i = 0; i < FRAME_OVERLAP; ++i) {
         //allocate a descriptor set for our draw image
         _frames[i]._drawImageDescriptors = globalDescriptorAllocator.allocate(_device, _drawImageDescriptorLayout);
@@ -239,6 +247,20 @@ void VulkanEngine::init_descriptors()
         DescriptorWriter writer;
         writer.write_image(0, _frames[i]._drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
         writer.update_set(_device, _frames[i]._drawImageDescriptors);
+
+        _frames[i]._frameDescriptors = std::move(DescriptorAllocatorGrowable{});
+        _frames[i]._frameDescriptors.init(_device, 1000, frame_sizes);
+
+        // capture by reference all variable except i.
+        _mainDeletionQueue.push_function([&, i]() {
+            _frames[i]._frameDescriptors.destroy_pools(_device);
+        });
+    }
+
+    {
+        DescriptorLayoutBuilder builder;
+        builder.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+        _gpuSceneDataDescriptorLayout = builder.build(_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
     }
     
     //make sure both the descriptor allocator and the new layout get cleaned up properly
@@ -851,6 +873,25 @@ void VulkanEngine::draw_background(VkCommandBuffer cmd, const FrameData& frame) 
 
 void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
 {
+    //allocate a new uniform buffer for the scene data
+    //  write on CPU and accessed by GPU: GPU memory accessible by CPU (host visible); write on CPU with fast access on the GPU.
+    AllocatedBuffer gpuSceneDataBuffer = create_buffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    //add it to the deletion queue of this frame so it gets deleted once it has been used.
+    get_current_frame()._deletionQueue.push_function([=, this]() {
+        // destroy this buffer per frame. no barriers needed.
+        destroy_buffer(gpuSceneDataBuffer);
+    });
+    //write the buffer. since the buffer is of type CPU write and GPU read, can skip transfer with vulkan commands from CPU to GPU.
+    //  also can skip memory barrier as host writes are implicit dependency with vkQueueSubmit.
+    GPUSceneData* sceneUniformData = (GPUSceneData*) gpuSceneDataBuffer.allocation->GetMappedData();
+    *sceneUniformData = sceneData;
+    //create a descriptor set that binds that buffer and update it
+    VkDescriptorSet globalDescriptor = get_current_frame()._frameDescriptors.allocate(_device, _gpuSceneDataDescriptorLayout);
+    // update descriptor binding for the global descriptor we allocate this frame.
+    DescriptorWriter writer;
+    writer.write_buffer(0, gpuSceneDataBuffer.buffer, sizeof(GPUSceneData), 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+    writer.update_set(_device, globalDescriptor);
+
     //begin a render pass  connected to our draw image
     VkRenderingAttachmentInfo colorAttachment = vkinit::attachment_info(frame._drawImage.imageView, nullptr, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     VkRenderingAttachmentInfo depthAttachment = vkinit::depth_attachment_info(frame._depthImage.imageView, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL);
@@ -923,8 +964,11 @@ void VulkanEngine::draw()
     // fence signaled, need to make it unsignaled again.
     VK_CHECK(vkResetFences(_device, 1, &get_current_frame()._renderFence));
     
+    /* dynamic per frame resource handling. */
     // flush deletion queue for this frame that just finish execution on the GPU.
     get_current_frame()._deletionQueue.flush();
+    // rellocate descriptor sets every frame. reset all prior descriptors. 
+    get_current_frame()._frameDescriptors.clear_pools(_device);
 
     // request image from the swapchain
     uint32_t swapchainImageIndex;

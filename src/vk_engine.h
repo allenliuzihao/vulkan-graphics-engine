@@ -40,6 +40,7 @@ struct FrameData {
 	AllocatedImage _drawImage, _depthImage;
 	VkDescriptorSet _drawImageDescriptors;
 
+	DescriptorAllocatorGrowable _frameDescriptors;
 	DeletionQueue _deletionQueue;
 };
 
@@ -130,6 +131,9 @@ public:
 
 	//run main loop
 	void run();
+
+	GPUSceneData sceneData;
+	VkDescriptorSetLayout _gpuSceneDataDescriptorLayout;
 
 	FrameData _frames[FRAME_OVERLAP];
 
