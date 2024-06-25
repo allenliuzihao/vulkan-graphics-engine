@@ -235,21 +235,10 @@ void VulkanEngine::init_descriptors()
         //allocate a descriptor set for our draw image
         _frames[i]._drawImageDescriptors = globalDescriptorAllocator.allocate(_device, _drawImageDescriptorLayout);
 
-        // bind storage image to that descriptor sets.
-        VkDescriptorImageInfo imgInfo{};
-        // expect _frames[i]._drawImage to be layout_general at the time this descriptor is accessed.
-        imgInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        imgInfo.imageView = _frames[i]._drawImage.imageView;
-
-        VkWriteDescriptorSet drawImageWrite = {};
-        drawImageWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        drawImageWrite.pNext = nullptr;
-        drawImageWrite.dstSet = _frames[i]._drawImageDescriptors;
-        drawImageWrite.dstBinding = 0;
-        drawImageWrite.descriptorCount = 1;
-        drawImageWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        drawImageWrite.pImageInfo = &imgInfo;
-        vkUpdateDescriptorSets(_device, 1, &drawImageWrite, 0, nullptr);
+        // bind storage image to that set.
+        DescriptorWriter writer;
+        writer.write_image(0, _frames[i]._drawImage.imageView, VK_NULL_HANDLE, VK_IMAGE_LAYOUT_GENERAL, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+        writer.update_set(_device, _frames[i]._drawImageDescriptors);
     }
     
     //make sure both the descriptor allocator and the new layout get cleaned up properly
