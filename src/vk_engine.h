@@ -148,6 +148,7 @@ public:
 	// descriptors
 	DescriptorAllocator globalDescriptorAllocator;
 	VkDescriptorSetLayout _drawImageDescriptorLayout;
+	VkDescriptorSetLayout _singleImageDescriptorLayout;
 
 	// graphics queue and its family.
 	VkQueue _graphicsQueue;
@@ -163,13 +164,11 @@ public:
 
 	std::vector<std::shared_ptr<MeshAsset>> _testMeshes;
 	int currentMesh { 0 };
-
 	bool resize_requested;
 
-	AllocatedImage _whiteImage;
-	AllocatedImage _blackImage;
-	AllocatedImage _greyImage;
-	AllocatedImage _errorCheckerboardImage;
+	// white, grey, black, magenta.
+	AllocatedImage _defaultImages[4];
+	int selectedImage = 3;
 
 	VkSampler _defaultSamplerLinear;
 	VkSampler _defaultSamplerNearest;

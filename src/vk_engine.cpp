@@ -263,6 +263,12 @@ void VulkanEngine::init_descriptors()
         _gpuSceneDataDescriptorLayout = builder.build(_device, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
     }
     
+    {
+        DescriptorLayoutBuilder builder;
+        builder.add_binding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+        _singleImageDescriptorLayout = builder.build(_device, VK_SHADER_STAGE_FRAGMENT_BIT);
+    }
+
     //make sure both the descriptor allocator and the new layout get cleaned up properly
     _mainDeletionQueue.push_function([&]() {
         globalDescriptorAllocator.destroy_pool(_device);
@@ -281,7 +287,8 @@ void VulkanEngine::init_pipelines()
 void VulkanEngine::init_mesh_pipeline() {
     // build current folder.
     std::string triangleVertexShaderPath = (SHADER_ROOT_PATH / "colored_triangle_mesh.vert.spv").string();
-    std::string triangleFragmentShaderPath = (SHADER_ROOT_PATH / "colored_triangle.frag.spv").string();
+    //std::string triangleFragmentShaderPath = (SHADER_ROOT_PATH / "colored_triangle.frag.spv").string();
+    std::string triangleFragmentShaderPath = (SHADER_ROOT_PATH / "tex_image.frag.spv").string();
 
     VkShaderModule triangleFragShader;
     if (!vkutil::load_shader_module(triangleFragmentShaderPath.c_str(), _device, &triangleFragShader)) {
@@ -305,7 +312,8 @@ void VulkanEngine::init_mesh_pipeline() {
     VkPipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
     pipeline_layout_info.pPushConstantRanges = &bufferRange;
     pipeline_layout_info.pushConstantRangeCount = 1;
-
+    pipeline_layout_info.pSetLayouts = &_singleImageDescriptorLayout;
+    pipeline_layout_info.setLayoutCount = 1;
     VK_CHECK(vkCreatePipelineLayout(_device, &pipeline_layout_info, nullptr, &_meshPipelineLayout));
 
     PipelineBuilder pipelineBuilder;
@@ -593,13 +601,16 @@ void VulkanEngine::init_default_data() {
     //  0 -> 32
     //  R8G8B8A8, where each component is scaled between [0, 255].
     uint32_t white = glm::packUnorm4x8(glm::vec4(1, 1, 1, 1));
-    _whiteImage = create_image((void*)&white, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
+    _defaultImages[0] = std::move(create_image((void*)&white, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT));
+    _defaultImages[0].name = "white";
 
     uint32_t grey = glm::packUnorm4x8(glm::vec4(0.66f, 0.66f, 0.66f, 1));
-    _greyImage = create_image((void*)&grey, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
+    _defaultImages[1] = std::move(create_image((void*)&grey, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT));
+    _defaultImages[1].name = "grey";
 
     uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
-    _blackImage = create_image((void*)&black, VkExtent3D{ 1, 1, 1 }, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
+    _defaultImages[2] = std::move(create_image((void*)&black, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT));
+    _defaultImages[2].name = "black";
 
     //checkerboard image
     uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
@@ -609,7 +620,8 @@ void VulkanEngine::init_default_data() {
             pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
         }
     }
-    _errorCheckerboardImage = create_image(pixels.data(), VkExtent3D{ 16, 16, 1 }, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT);
+    _defaultImages[3] = std::move(create_image(pixels.data(), VkExtent3D{16, 16, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT));
+    _defaultImages[3].name = "magenta";
 
     VkSamplerCreateInfo sampl = { .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
     sampl.magFilter = VK_FILTER_NEAREST;
@@ -630,10 +642,9 @@ void VulkanEngine::init_default_data() {
         vkDestroySampler(_device, _defaultSamplerNearest, nullptr);
         vkDestroySampler(_device, _defaultSamplerLinear, nullptr);
 
-        destroy_image(_whiteImage);
-        destroy_image(_greyImage);
-        destroy_image(_blackImage);
-        destroy_image(_errorCheckerboardImage);
+        for (uint32_t i = 0; i < 4; ++i) {
+            destroy_image(_defaultImages[i]);
+        }
 
         // delete allocated meshes.
         fmt::println("delete allocated meshes from gltf.");
@@ -1029,6 +1040,16 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     float height = static_cast<float>(_drawExtent.height);
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
+    //bind a texture
+    VkDescriptorSet imageSet = get_current_frame()._frameDescriptors.allocate(_device, _singleImageDescriptorLayout);
+    {
+        DescriptorWriter writer;
+        writer.write_image(0, _defaultImages[selectedImage].imageView, _defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+        writer.update_set(_device, imageSet);
+    }
+    // set 0, binding 0 has the combined image sampler.
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
+    
     //set dynamic viewport and scissor
     VkViewport viewport = {};
     viewport.x = 0;
@@ -1283,6 +1304,10 @@ void VulkanEngine::run()
             ImGui::Text("Selected mesh: ", meshesSelected->name);
             ImGui::SliderInt("Mesh Index", &currentMesh, 0, std::max(0, ((int)_testMeshes.size()) - 1));
             
+            auto& imageSelected = _defaultImages[selectedImage];
+            ImGui::Text("Selected image: ", imageSelected.name);
+            ImGui::SliderInt("Image Index", &selectedImage, 0, std::max(0, (int)(sizeof(_defaultImages) / sizeof(_defaultImages[0]) - 1)));
+
             ImGui::SliderFloat("Render Scale", &renderScale, 0.3f, 1.0f);
         }
         ImGui::End();

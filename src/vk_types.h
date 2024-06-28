@@ -31,6 +31,7 @@
     } while (0)
 
 struct AllocatedImage {
+    std::string name;
     VkImage image;
     VkImageView imageView;
     VmaAllocation allocation;
