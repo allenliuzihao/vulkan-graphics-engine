@@ -60,6 +60,7 @@ struct ComputeEffect {
 	ComputePushConstants data;
 };
 
+class VulkanEngine;
 struct GLTFMetallic_Roughness {
 	MaterialPipeline opaquePipeline;
 	MaterialPipeline transparentPipeline;
@@ -88,7 +89,7 @@ struct GLTFMetallic_Roughness {
 	DescriptorWriter writer;
 
 	void build_pipelines(VulkanEngine* engine);
-	void clear_resources(VkDevice device);
+	void destroy_resources(VkDevice device);
 
 	MaterialInstance write_material(VkDevice device, MaterialPass pass, const MaterialResources& resources, DescriptorAllocatorGrowable& descriptorAllocator);
 };
@@ -179,7 +180,7 @@ public:
 	VmaAllocator _allocator;
 
 	// descriptors
-	DescriptorAllocator globalDescriptorAllocator;
+	DescriptorAllocatorGrowable globalDescriptorAllocator;
 	VkDescriptorSetLayout _drawImageDescriptorLayout;
 	VkDescriptorSetLayout _singleImageDescriptorLayout;
 
@@ -205,6 +206,9 @@ public:
 
 	VkSampler _defaultSamplerLinear;
 	VkSampler _defaultSamplerNearest;
+
+	MaterialInstance defaultData;
+	GLTFMetallic_Roughness metalRoughMaterial;
 private:
 	void init_default_data();
 	void init_imgui();

@@ -212,7 +212,7 @@ VkDescriptorSet DescriptorAllocatorGrowable::allocate(VkDevice device, VkDescrip
 void DescriptorWriter::write_buffer(int binding, VkBuffer buffer, size_t size, size_t offset, VkDescriptorType type)
 {
     // reference to buffer info within the bufferInfos vector.
-    VkDescriptorBufferInfo& info = bufferInfos.emplace_back(VkDescriptorBufferInfo{
+    bufferInfos.emplace_back(VkDescriptorBufferInfo{
         .buffer = buffer,
         .offset = offset,
         .range = size
@@ -223,7 +223,7 @@ void DescriptorWriter::write_buffer(int binding, VkBuffer buffer, size_t size, s
     write.dstSet = VK_NULL_HANDLE; //left empty for now until we need to write it
     write.descriptorCount = 1;
     write.descriptorType = type;
-    write.pBufferInfo = &info;
+    write.pBufferInfo = nullptr;
     writes.push_back(write);
 }
 
@@ -234,7 +234,7 @@ void DescriptorWriter::write_buffer(int binding, VkBuffer buffer, size_t size, s
 //  VK_DESCRIPTOR_TYPE_STORAGE_IMAGE: no sampler needed. compute shader access pixel data through imageLoad and imageStore.
 void DescriptorWriter::write_image(int binding, VkImageView image, VkSampler sampler, VkImageLayout layout, VkDescriptorType type)
 {
-    VkDescriptorImageInfo& info = imageInfos.emplace_back(VkDescriptorImageInfo{
+    imageInfos.emplace_back(VkDescriptorImageInfo{
         .sampler = sampler,
         .imageView = image,
         .imageLayout = layout
@@ -245,7 +245,7 @@ void DescriptorWriter::write_image(int binding, VkImageView image, VkSampler sam
     write.dstSet = VK_NULL_HANDLE; //left empty for now until we need to write it
     write.descriptorCount = 1;
     write.descriptorType = type;
-    write.pImageInfo = &info;
+    write.pImageInfo = nullptr; 
     writes.push_back(write);
 }
 
@@ -256,11 +256,26 @@ void DescriptorWriter::clear()
     bufferInfos.clear();
 }
 
+bool DescriptorWriter::is_image_type(VkDescriptorType type) {
+    return type == VK_DESCRIPTOR_TYPE_SAMPLER || type == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE || type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER || type == VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+}
+
+bool DescriptorWriter::is_buffer_type(VkDescriptorType type) {
+    return type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER || type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER || type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC || type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+}
+
 // update bindings of images/buffers for a specific descriptor set.
 void DescriptorWriter::update_set(VkDevice device, VkDescriptorSet set)
 {
-    for (VkWriteDescriptorSet& write : writes) {
+    uint32_t imageIndex = 0, bufferIndex = 0;
+    for (size_t i = 0; i < writes.size(); ++i) {
+        auto& write = writes[i];
         write.dstSet = set;
+        if (is_image_type(write.descriptorType)) {
+            write.pImageInfo = &imageInfos[imageIndex++];
+        } else {
+            write.pBufferInfo = &bufferInfos[bufferIndex++];
+        }
     }
     vkUpdateDescriptorSets(device, (uint32_t)writes.size(), writes.data(), 0, nullptr);
 }

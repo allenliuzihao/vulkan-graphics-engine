@@ -52,6 +52,9 @@ struct DescriptorWriter {
     std::vector<VkDescriptorBufferInfo> bufferInfos;
     std::vector<VkWriteDescriptorSet> writes;
 
+    bool is_image_type(VkDescriptorType type);
+    bool is_buffer_type(VkDescriptorType type);
+
     void write_image(int binding, VkImageView image, VkSampler sampler, VkImageLayout layout, VkDescriptorType type);
     void write_buffer(int binding, VkBuffer buffer, size_t size, size_t offset, VkDescriptorType type);
 

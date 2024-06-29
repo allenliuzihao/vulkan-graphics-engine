@@ -112,7 +112,3 @@ struct RenderObject {
     VkDeviceAddress vertexBufferAddress;
 };
 
-// base class for a renderable dynamic object
-class IRenderable {
-    virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) = 0;
-};
