@@ -74,3 +74,45 @@ struct GPUSceneData {
     glm::vec4 sunlightDirection; // w for sun power
     glm::vec4 sunlightColor;
 };
+
+enum class MaterialPass :uint8_t {
+    MainColor,
+    Transparent,
+    Other
+};
+
+struct MaterialPipeline {
+    VkPipeline pipeline;        // pbr opaque and pbr transparent pipeline. 
+    VkPipelineLayout layout;    
+};
+
+// is it opaque or transparent for that material.
+struct MaterialInstance {
+    // pipeline and its layout.
+    MaterialPipeline* pipeline;
+    // one ds per material: textures (sampler) and material parameters (uniform buffer).
+    VkDescriptorSet materialSet;
+    MaterialPass passType;
+};
+
+struct RenderObject {
+    // describes indices for a mesh
+    uint32_t indexCount;
+    uint32_t firstIndex;
+    VkBuffer indexBuffer;
+
+    // material for that mesh.
+    //  pipeline and descriptor set for a material.
+    MaterialInstance* material;
+
+    // push constant.
+    // transformation of that mesh.
+    glm::mat4 transform;
+    // vertex buffer GPU pointer.
+    VkDeviceAddress vertexBufferAddress;
+};
+
+// base class for a renderable dynamic object
+class IRenderable {
+    virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) = 0;
+};
