@@ -70,8 +70,6 @@ struct GLTFMetallic_Roughness {
 	struct MaterialConstants {
 		glm::vec4 colorFactors;				// multiplied with color texture.
 		glm::vec4 metal_rough_factors;		// metallic (R), roughness (B)
-		//padding, we need it anyway for uniform buffers
-		glm::vec4 extra[14];
 	};
 
 	// textures and uniform buffers.
