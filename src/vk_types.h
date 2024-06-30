@@ -20,7 +20,6 @@
 #include <glm/mat4x4.hpp>
 #include <glm/vec4.hpp>
 
-
 #define VK_CHECK(x)                                                     \
     do {                                                                \
         VkResult err = x;                                               \
@@ -112,3 +111,45 @@ struct RenderObject {
     VkDeviceAddress vertexBufferAddress;
 };
 
+struct DrawContext {
+    std::vector<RenderObject> OpaqueSurfaces;
+};
+
+// base class for a renderable dynamic object
+class IRenderable {
+    virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) = 0;
+};
+
+// implementation of a drawable scene node.
+//  the scene node can hold children and will also keep a transform to propagate to them.
+struct Node : public IRenderable {
+    // parent pointer must be a weak pointer to avoid circular dependencies
+    //  this doesn't increment the reference count of parent node.
+    std::weak_ptr<Node> parent;
+    // this increases reference count for child nodes.
+    std::vector<std::shared_ptr<Node>> children;
+
+    // local transform by this node.
+    glm::mat4 localTransform;
+    // current world transform. 
+    glm::mat4 worldTransform;
+
+    // parent matrix: accumulated transform prior to this node.
+    void refreshTransform(const glm::mat4& parentMatrix)
+    {
+        worldTransform = parentMatrix * localTransform;
+        for (auto c : children) {
+            // propagate transform to descendents. 
+            c->refreshTransform(worldTransform);
+        }
+    }
+
+    // nothing to draw here.
+    virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx)
+    {
+        // draw children
+        for (auto& c : children) {
+            c->Draw(topMatrix, ctx);
+        }
+    }
+};
