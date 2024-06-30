@@ -6,6 +6,7 @@
 #include <vk_types.h>
 #include <vk_descriptors.h>
 #include <vk_loader.h>
+#include <camera.h>
 
 #include <filesystem>
 
@@ -132,7 +133,6 @@ public:
 	VkFence _immFence;
 	VkCommandBuffer _immCommandBuffer;
 	VkCommandPool _immCommandPool;
-
 	void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
 
 	// swapchain stuff.
@@ -160,7 +160,7 @@ public:
 	void cleanup();
 
 	//draw loop
-	void draw();
+	void draw(float deltaTime);
 
 	void draw_imgui(VkCommandBuffer cmd, VkImageView targetImageView);
 
@@ -217,7 +217,12 @@ public:
 
 	DrawContext mainDrawContext;
 	std::unordered_map<std::string, std::shared_ptr<Node>> loadedNodes;
-	void update_scene();
+	void update_scene(float deltaTime);
+
+	void record_draw();
+
+	// camera.
+	Camera mainCamera;
 private:
 	void init_default_data();
 	void init_imgui();

@@ -956,6 +956,13 @@ void VulkanEngine::init()
 
     init_imgui();
 
+    // initialize camera.
+    mainCamera.velocity = glm::vec3(0.f);
+    mainCamera.position = glm::vec3(0, 0, 5);
+
+    mainCamera.pitch = 0;
+    mainCamera.yaw = 0;
+
     // everything went fine
     _isInitialized = true;
 }
@@ -1027,14 +1034,27 @@ void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& f
     VK_CHECK(vkWaitForFences(_device, 1, &_immFence, true, MAX_TIMEOUT));
 }
 
-void VulkanEngine::update_scene()
-{
+void VulkanEngine::record_draw() {
     mainDrawContext.OpaqueSurfaces.clear();
     auto& monkey = loadedNodes["Suzanne"];
     // draw mesh.
     monkey->Draw(glm::mat4{ 1.f }, mainDrawContext);
+
+    auto& cube = loadedNodes["Cube"];
+    for (int x = -3; x < 3; x++) {
+        glm::mat4 scale = glm::scale(glm::vec3{ 0.2f });
+        glm::mat4 translation = glm::translate(glm::vec3{ x, 1, 0 });
+
+        cube->Draw(translation * scale, mainDrawContext);
+    }
+}
+
+void VulkanEngine::update_scene(float deltaTime)
+{
+    mainCamera.update(deltaTime);
+   
     // view matrix.
-    sceneData.view = glm::translate(glm::vec3{ 0, 0, -5 });
+    sceneData.view = mainCamera.getViewMatrix();
     // camera projection
     sceneData.proj = glm::perspective(glm::radians(70.f), (float)_windowExtent.width / (float)_windowExtent.height, 10000.f, 0.1f);
 
@@ -1047,14 +1067,6 @@ void VulkanEngine::update_scene()
     sceneData.ambientColor = glm::vec4(.1f);
     sceneData.sunlightColor = glm::vec4(1.f);
     //sceneData.sunlightDirection = glm::vec4(0, 1, 0.1, 1.f);
-
-    auto& cube = loadedNodes["Cube"];
-    for (int x = -3; x < 3; x++) {
-        glm::mat4 scale = glm::scale(glm::vec3{ 0.2f });
-        glm::mat4 translation = glm::translate(glm::vec3{ x, 1, 0 });
-
-        cube->Draw(translation * scale, mainDrawContext);
-    }
 }
 
 void VulkanEngine::draw_background(VkCommandBuffer cmd, const FrameData& frame) {
@@ -1194,9 +1206,11 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     */
 }
 
-void VulkanEngine::draw()
+void VulkanEngine::draw(float deltaTime)
 {
-    update_scene();
+    update_scene(deltaTime);
+
+    record_draw();
 
     // upsampling only from draw image to swapchain. 
     _drawExtent.height = (uint32_t) (std::min(_swapchainExtent.height, get_current_frame()._drawImage.imageExtent.height) * renderScale);
@@ -1338,6 +1352,9 @@ void VulkanEngine::run()
     SDL_Event e;
     bool bQuit = false;
 
+    std::chrono::steady_clock::time_point lastUpdate = std::chrono::steady_clock::now();
+    float deltaTime = 0.0;
+
     // main loop
     while (!bQuit) {
         // Handle events on queue, itearte through each type of event.
@@ -1374,6 +1391,7 @@ void VulkanEngine::run()
                 break;
             }
 
+            mainCamera.processSDLEvent(e);
             // send SDL process event.
             ImGui_ImplSDL2_ProcessEvent(&e);
         }
@@ -1417,7 +1435,13 @@ void VulkanEngine::run()
         //make imgui calculate internal draw structures
         ImGui::Render();
 
-        draw();
+        // compute delta time.
+        auto now = std::chrono::steady_clock::now();
+        deltaTime = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate).count() / 1000.0;
+        lastUpdate = now;
+
+        // update draw.
+        draw(deltaTime);
 
         if (resize_requested) {
             resize_swapchain();
