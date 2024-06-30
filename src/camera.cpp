@@ -42,6 +42,7 @@ void Camera::processSDLEvent(SDL_Event& e)
         if (e.key.keysym.sym == SDLK_s) { velocity.z = 1; }
         if (e.key.keysym.sym == SDLK_a) { velocity.x = -1; }
         if (e.key.keysym.sym == SDLK_d) { velocity.x = 1; }
+        fmt::println("pressed {} down", e.key.keysym.sym);
     }
 
     if (e.type == SDL_KEYUP) {
@@ -49,6 +50,7 @@ void Camera::processSDLEvent(SDL_Event& e)
         if (e.key.keysym.sym == SDLK_s) { velocity.z = 0; }
         if (e.key.keysym.sym == SDLK_a) { velocity.x = 0; }
         if (e.key.keysym.sym == SDLK_d) { velocity.x = 0; }
+        fmt::println("pressed {} up", e.key.keysym.sym);
     }
 
     if (e.type == SDL_MOUSEMOTION) {

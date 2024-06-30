@@ -1372,6 +1372,9 @@ void VulkanEngine::run()
                     stop_rendering = false;
                 }
                 break;
+            default:
+                break;
+            /*
             case SDL_KEYDOWN:
                 if (e.key.keysym.sym == SDLK_UP) {
                     // Up Arrow
@@ -1387,10 +1390,8 @@ void VulkanEngine::run()
                     fmt::println("Key press right detected.");
                 }
                 break;
-            default:
-                break;
+            */
             }
-
             mainCamera.processSDLEvent(e);
             // send SDL process event.
             ImGui_ImplSDL2_ProcessEvent(&e);
