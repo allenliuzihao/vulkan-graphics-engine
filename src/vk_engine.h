@@ -214,6 +214,10 @@ public:
 
 	MaterialInstance defaultData;
 	GLTFMetallic_Roughness metalRoughMaterial;
+
+	DrawContext mainDrawContext;
+	std::unordered_map<std::string, std::shared_ptr<Node>> loadedNodes;
+	void update_scene();
 private:
 	void init_default_data();
 	void init_imgui();

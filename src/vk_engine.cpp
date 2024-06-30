@@ -660,6 +660,24 @@ void VulkanEngine::init_default_data() {
     materialResources.dataBuffer = materialConstants.buffer;
     materialResources.dataBufferOffset = 0;
     defaultData = metalRoughMaterial.write_material(_device, MaterialPass::MainColor, materialResources, globalDescriptorAllocator);
+    auto defaultMaterial = std::make_shared<GLTFMaterial>(defaultData);
+    
+    // load mesh nodes.
+    for (auto& m : _testMeshes) {
+        std::shared_ptr<MeshNode> newNode = std::make_shared<MeshNode>();
+        newNode->mesh = m;
+
+        newNode->localTransform = glm::mat4{ 1.f };
+        newNode->worldTransform = glm::mat4{ 1.f };
+
+        // for each surface, add its material.
+        for (auto& s : newNode->mesh->surfaces) {
+            // this will create a bunch of material that point to the same data.
+            s.material = defaultMaterial;
+        }
+        // mesh nodes are stored in loaded nodes.
+        loadedNodes[m->name] = std::move(newNode);
+    }
 
     //delete the rectangle data on engine shutdown
     _mainDeletionQueue.push_function([&]() {
@@ -1009,6 +1027,28 @@ void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& f
     VK_CHECK(vkWaitForFences(_device, 1, &_immFence, true, MAX_TIMEOUT));
 }
 
+void VulkanEngine::update_scene()
+{
+    mainDrawContext.OpaqueSurfaces.clear();
+
+    // draw mesh.
+    loadedNodes["Suzanne"]->Draw(glm::mat4{ 1.f }, mainDrawContext);
+    // view matrix.
+    sceneData.view = glm::translate(glm::vec3{ 0, 0, -5 });
+    // camera projection
+    sceneData.proj = glm::perspective(glm::radians(70.f), (float)_windowExtent.width / (float)_windowExtent.height, 10000.f, 0.1f);
+
+    // invert the Y direction on projection matrix so that we are more similar
+    // to opengl and gltf axis
+    sceneData.proj[1][1] *= -1;
+    sceneData.viewproj = sceneData.proj * sceneData.view;
+
+    //some default lighting parameters
+    sceneData.ambientColor = glm::vec4(.1f);
+    sceneData.sunlightColor = glm::vec4(1.f);
+    sceneData.sunlightDirection = glm::vec4(0, 1, 0.5, 1.f);
+}
+
 void VulkanEngine::draw_background(VkCommandBuffer cmd, const FrameData& frame) {
     /*
     //make a clear-color from frame number. This will flash with a 120 frame period.
@@ -1069,17 +1109,6 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     float width = static_cast<float>(_drawExtent.width);
     float height = static_cast<float>(_drawExtent.height);
 
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
-    //bind a texture
-    VkDescriptorSet imageSet = get_current_frame()._frameDescriptors.allocate(_device, _singleImageDescriptorLayout);
-    {
-        DescriptorWriter writer;
-        writer.write_image(0, _defaultImages[selectedImage].imageView, _defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-        writer.update_set(_device, imageSet);
-    }
-    // set 0, binding 0 has the combined image sampler.
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
-    
     //set dynamic viewport and scissor
     VkViewport viewport = {};
     viewport.x = 0;
@@ -1096,8 +1125,37 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     scissor.extent.width = _drawExtent.width;
     scissor.extent.height = _drawExtent.height;
     vkCmdSetScissor(cmd, 0, 1, &scissor);
-    //launch a draw command to draw 3 vertices
+
+    for (const RenderObject& draw : mainDrawContext.OpaqueSurfaces) {
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->pipeline);
+        // TODO: inefficient as binding per draw call.
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 0, 1, &globalDescriptor, 0, nullptr);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 1, 1, &draw.material->materialSet, 0, nullptr);
+
+        vkCmdBindIndexBuffer(cmd, draw.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+        GPUDrawPushConstants pushConstants;
+        pushConstants.vertexBuffer = draw.vertexBufferAddress;
+        pushConstants.worldMatrix = draw.transform;
+        vkCmdPushConstants(cmd, draw.material->pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushConstants);
+
+        vkCmdDrawIndexed(cmd, draw.indexCount, 1, draw.firstIndex, 0, 0);
+    }
+    vkCmdEndRendering(cmd);
+
     /*
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
+    //bind a texture
+    VkDescriptorSet imageSet = get_current_frame()._frameDescriptors.allocate(_device, _singleImageDescriptorLayout);
+    {
+        DescriptorWriter writer;
+        writer.write_image(0, _defaultImages[selectedImage].imageView, _defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+        writer.update_set(_device, imageSet);
+    }
+    // set 0, binding 0 has the combined image sampler.
+    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
+
+    //launch a draw command to draw 3 vertices
     vkCmdDraw(cmd, 3, 1, 0, 0);
     // dynamic rendering
     push_constants.worldMatrix = glm::mat4(1.0);
@@ -1105,7 +1163,7 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
     vkCmdBindIndexBuffer(cmd, _meshData.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
-    */
+
     // draw gltf geometries. 
     auto& mesh = _testMeshes[currentMesh];
     glm::mat4 view = glm::mat4{ 1.f };  // identity matrix.
@@ -1125,11 +1183,13 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     for (auto& surface : mesh->surfaces) {
         vkCmdDrawIndexed(cmd, surface.count, 1, surface.startIndex, 0, 0);
     }
-    vkCmdEndRendering(cmd);
+    */
 }
 
 void VulkanEngine::draw()
 {
+    update_scene();
+
     // upsampling only from draw image to swapchain. 
     _drawExtent.height = (uint32_t) (std::min(_swapchainExtent.height, get_current_frame()._drawImage.imageExtent.height) * renderScale);
     _drawExtent.width = (uint32_t) (std::min(_swapchainExtent.width, get_current_frame()._drawImage.imageExtent.width) * renderScale);
@@ -1471,3 +1531,4 @@ void MeshNode::Draw(const glm::mat4& topMatrix, DrawContext& ctx) {
     // recurse down to children.
     Node::Draw(topMatrix, ctx);
 }
+
