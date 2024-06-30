@@ -1030,23 +1030,31 @@ void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& f
 void VulkanEngine::update_scene()
 {
     mainDrawContext.OpaqueSurfaces.clear();
-
+    auto& monkey = loadedNodes["Suzanne"];
     // draw mesh.
-    loadedNodes["Suzanne"]->Draw(glm::mat4{ 1.f }, mainDrawContext);
+    monkey->Draw(glm::mat4{ 1.f }, mainDrawContext);
     // view matrix.
     sceneData.view = glm::translate(glm::vec3{ 0, 0, -5 });
     // camera projection
     sceneData.proj = glm::perspective(glm::radians(70.f), (float)_windowExtent.width / (float)_windowExtent.height, 10000.f, 0.1f);
 
     // invert the Y direction on projection matrix so that we are more similar
-    // to opengl and gltf axis
+    // to opengl and gltf axis in the screen space (-1, 1).
     sceneData.proj[1][1] *= -1;
     sceneData.viewproj = sceneData.proj * sceneData.view;
 
     //some default lighting parameters
     sceneData.ambientColor = glm::vec4(.1f);
     sceneData.sunlightColor = glm::vec4(1.f);
-    sceneData.sunlightDirection = glm::vec4(0, 1, 0.5, 1.f);
+    //sceneData.sunlightDirection = glm::vec4(0, 1, 0.1, 1.f);
+
+    auto& cube = loadedNodes["Cube"];
+    for (int x = -3; x < 3; x++) {
+        glm::mat4 scale = glm::scale(glm::vec3{ 0.2 });
+        glm::mat4 translation = glm::translate(glm::vec3{ x, 1, 0 });
+
+        cube->Draw(translation * scale, mainDrawContext);
+    }
 }
 
 void VulkanEngine::draw_background(VkCommandBuffer cmd, const FrameData& frame) {
@@ -1397,6 +1405,10 @@ void VulkanEngine::run()
             auto& imageSelected = _defaultImages[selectedImage];
             ImGui::Text("Selected image: ", imageSelected.name);
             ImGui::SliderInt("Image Index", &selectedImage, 0, std::max(0, (int)(sizeof(_defaultImages) / sizeof(_defaultImages[0]) - 1)));
+
+            float inputFloat[3] = { sceneData.sunlightDirection.x, sceneData.sunlightDirection.y, sceneData.sunlightDirection.z};
+            ImGui::InputFloat3("Sun direction", inputFloat);
+            sceneData.sunlightDirection = glm::vec4(inputFloat[0], inputFloat[1], inputFloat[2], sceneData.sunlightDirection.w);
 
             ImGui::SliderFloat("Render Scale", &renderScale, 0.3f, 1.0f);
         }
