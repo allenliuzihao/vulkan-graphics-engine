@@ -36,21 +36,48 @@ glm::mat4 Camera::getRotationMatrix()
 
 void Camera::processSDLEvent(SDL_Event& e)
 {
-    // TODO: improve event handling.
+    // improve event handling.
     if (e.type == SDL_KEYDOWN) {
-        if (e.key.keysym.sym == SDLK_w) { velocity.z = -1; }
-        if (e.key.keysym.sym == SDLK_s) { velocity.z = 1; }
-        if (e.key.keysym.sym == SDLK_a) { velocity.x = -1; }
-        if (e.key.keysym.sym == SDLK_d) { velocity.x = 1; }
-        fmt::println("pressed {} down", e.key.keysym.sym);
+        if (e.key.keysym.sym == SDLK_w) { 
+            pressDownW = true;
+        } else if (e.key.keysym.sym == SDLK_s) { 
+            pressDownS = true;
+        } else if (e.key.keysym.sym == SDLK_a) { 
+            pressDownA = true;
+        } else if (e.key.keysym.sym == SDLK_d) { 
+            pressDownD = true;
+        }
+        //fmt::println("pressed {} down", e.key.keysym.sym);
+    } else if (e.type == SDL_KEYUP) {
+        if (e.key.keysym.sym == SDLK_w) { 
+            pressDownW = false;
+        } else if (e.key.keysym.sym == SDLK_s) {
+            pressDownS = false;
+        } else if (e.key.keysym.sym == SDLK_a) { 
+            pressDownA = false;
+        } else if (e.key.keysym.sym == SDLK_d) { 
+            pressDownD = false;
+        }
     }
 
-    if (e.type == SDL_KEYUP) {
-        if (e.key.keysym.sym == SDLK_w) { velocity.z = 0; }
-        if (e.key.keysym.sym == SDLK_s) { velocity.z = 0; }
-        if (e.key.keysym.sym == SDLK_a) { velocity.x = 0; }
-        if (e.key.keysym.sym == SDLK_d) { velocity.x = 0; }
-        fmt::println("pressed {} up", e.key.keysym.sym);
+    if (!pressDownS && !pressDownW) {
+        velocity.z = 0;
+    } else if (!pressDownS && pressDownW) {
+        velocity.z = -1;
+    } else if (pressDownS && !pressDownW) {
+        velocity.z = 1;
+    } else {
+        velocity.z = 0;
+    }
+
+    if (!pressDownA && !pressDownD) {
+        velocity.x = 0;
+    } else if (!pressDownA && pressDownD) {
+        velocity.x = 1;
+    } else if (pressDownA && !pressDownD) {
+        velocity.x = -1;
+    } else {
+        velocity.x = 0;
     }
 
     if (e.type == SDL_MOUSEMOTION) {

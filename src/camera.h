@@ -1,6 +1,7 @@
 
 #include <vk_types.h>
 #include <SDL_events.h>
+#include <stack>
 
 #include <vk_types.h>
 
@@ -17,6 +18,8 @@ public:
 
     glm::mat4 getViewMatrix();
     glm::mat4 getRotationMatrix();
+
+    bool pressDownW = false, pressDownA = false, pressDownS = false, pressDownD = false;
 
     void processSDLEvent(SDL_Event& e);
 
