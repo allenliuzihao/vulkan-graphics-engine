@@ -1050,7 +1050,7 @@ void VulkanEngine::update_scene()
 
     auto& cube = loadedNodes["Cube"];
     for (int x = -3; x < 3; x++) {
-        glm::mat4 scale = glm::scale(glm::vec3{ 0.2 });
+        glm::mat4 scale = glm::scale(glm::vec3{ 0.2f });
         glm::mat4 translation = glm::translate(glm::vec3{ x, 1, 0 });
 
         cube->Draw(translation * scale, mainDrawContext);
@@ -1408,7 +1408,7 @@ void VulkanEngine::run()
 
             float inputFloat[3] = { sceneData.sunlightDirection.x, sceneData.sunlightDirection.y, sceneData.sunlightDirection.z};
             ImGui::InputFloat3("Sun direction", inputFloat);
-            sceneData.sunlightDirection = glm::vec4(inputFloat[0], inputFloat[1], inputFloat[2], sceneData.sunlightDirection.w);
+            sceneData.sunlightDirection = glm::vec4(glm::normalize(glm::vec3(inputFloat[0], inputFloat[1], inputFloat[2])), sceneData.sunlightDirection.w);
 
             ImGui::SliderFloat("Render Scale", &renderScale, 0.3f, 1.0f);
         }

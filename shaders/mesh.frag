@@ -13,7 +13,7 @@ layout (location = 0) out vec4 outFragColor;
 void main() 
 {
     // dot(normal, sunlight direction to light)
-	float lightValue = max(dot(inNormal, sceneData.sunlightDirection.xyz), 0.1f);
+	float lightValue = max(dot(normalize(inNormal), normalize(sceneData.sunlightDirection.xyz)), 0.1f);
     // vertex color * texture color.
 	vec3 color = inColor * texture(colorTex, inUV).xyz;
     // ambient light: vertex color * texture color * ambient color.
