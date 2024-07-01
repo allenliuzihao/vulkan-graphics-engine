@@ -22,6 +22,8 @@ add_executable (engine
   camera.cpp
   camera.h
   vk_constants.h
+  vk_utility.h
+  vk_utility.cpp
 )
 
 set_property(TARGET engine PROPERTY CXX_STANDARD 20)

@@ -5,6 +5,7 @@
 
 #include <vk_constants.h>
 #include <vk_types.h>
+#include <vk_utility.h>
 #include <vk_descriptors.h>
 #include <vk_loader.h>
 #include <vk_buffer.h>
@@ -13,27 +14,6 @@
 
 #include <filesystem>
 #include <execution>
-
-struct DeletionQueue
-{
-	std::deque<std::function<void()>> deletors;
-
-	// growing lambda at the back of the queue.
-	void push_function(std::function<void()>&& function) {
-		deletors.push_back(function);
-	}
-
-	void flush() {
-		// reverse iterate the deletion queue to execute all the functions
-		//	stack. 
-		for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
-			(*it)(); //call functors
-		}
-
-		// clear lambdas. 
-		deletors.clear();
-	}
-};
 
 struct FrameData {
 	VkSemaphore _acquireSemaphore, _renderSemaphore;
@@ -46,7 +26,7 @@ struct FrameData {
 	VkDescriptorSet _drawImageDescriptors;
 
 	DescriptorAllocatorGrowable _frameDescriptors;
-	DeletionQueue _deletionQueue;
+	vkutil::DeletionQueue _deletionQueue;
 };
 
 struct ComputePushConstants {
@@ -145,7 +125,7 @@ public:
 	FrameData& get_current_frame() { return _frames[_frameNumber % FRAME_OVERLAP]; };
 	GPUMeshBuffers uploadMesh(std::span<uint32_t> indices, std::span<Vertex> vertices);
 
-	DeletionQueue _mainDeletionQueue;
+	vkutil::DeletionQueue _mainDeletionQueue;
 
 	VmaAllocator _allocator;
 
@@ -211,6 +191,4 @@ private:
 	void create_swapchain(uint32_t width, uint32_t height);
 	void destroy_swapchain();
 	void resize_swapchain();
-
-	bool is_visible(const RenderObject& obj, const glm::mat4& viewproj);
 };

@@ -1066,17 +1066,6 @@ void VulkanEngine::update_scene(float deltaTime)
 }
 
 void VulkanEngine::draw_background(VkCommandBuffer cmd, const FrameData& frame) {
-    /*
-    //make a clear-color from frame number. This will flash with a 120 frame period.
-    VkClearColorValue clearValue;
-    float flash = std::abs(std::sin((_frameNumber / 120.f) * std::numbers::pi_v<float>));
-    clearValue = { { 0.0f, 0.0f, flash, 1.0f } };
-
-    VkImageSubresourceRange clearRange = vkinit::image_subresource_range(VK_IMAGE_ASPECT_COLOR_BIT);
-
-    //clear image, this is technically a transfer command.
-    vkCmdClearColorImage(cmd, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clearValue, 1, &clearRange);
-    */
     ComputeEffect& effect = backgroundEffects[currentBackgroundEffect];
 
     // bind the gradient drawing compute pipeline
@@ -1107,14 +1096,14 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
 
     for (uint32_t i = 0; i < mainDrawContext.OpaqueSurfaces.size(); i++) {
         // CPU frustum culling.
-        if (is_visible(mainDrawContext.OpaqueSurfaces[i], sceneData.viewproj)) {
+        if (vkutil::is_visible(mainDrawContext.OpaqueSurfaces[i], sceneData.viewproj)) {
             opaque_draws.push_back(i);
         }
     }
 
     for (uint32_t i = 0; i < mainDrawContext.TransparentSurfaces.size(); i++) {
         // CPU frustum culling.
-        if (is_visible(mainDrawContext.TransparentSurfaces[i], sceneData.viewproj)) {
+        if (vkutil::is_visible(mainDrawContext.TransparentSurfaces[i], sceneData.viewproj)) {
             transparent_draws.push_back(i);
         }
     }
@@ -1251,48 +1240,6 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     //convert to microseconds (integer), and then come back to miliseconds
     auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     stats.mesh_draw_time = elapsed.count() / 1000.f;
-
-    /*
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
-    //bind a texture
-    VkDescriptorSet imageSet = get_current_frame()._frameDescriptors.allocate(_device, _singleImageDescriptorLayout);
-    {
-        DescriptorWriter writer;
-        writer.write_image(0, _defaultImages[selectedImage].imageView, _defaultSamplerNearest, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-        writer.update_set(_device, imageSet);
-    }
-    // set 0, binding 0 has the combined image sampler.
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipelineLayout, 0, 1, &imageSet, 0, nullptr);
-
-    //launch a draw command to draw 3 vertices
-    vkCmdDraw(cmd, 3, 1, 0, 0);
-    // dynamic rendering
-    push_constants.worldMatrix = glm::mat4(1.0);
-    push_constants.vertexBuffer = _meshData.vertexBufferAddress;
-    vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
-    vkCmdBindIndexBuffer(cmd, _meshData.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(cmd, 6, 1, 0, 0, 0);
-
-    // draw gltf geometries. 
-    auto& mesh = _testMeshes[currentMesh];
-    glm::mat4 view = glm::mat4{ 1.f };  // identity matrix.
-    view = glm::translate(view, glm::vec3{ 0, 0, -5 });
-    // camera projection, reverse z.
-    glm::mat4 projection = glm::perspective(glm::radians(70.f), (float)_drawExtent.width / (float)_drawExtent.height, 10000.f, 0.1f);
-    // invert the Y direction on projection matrix so that we are more similar to opengl and gltf axis
-    projection[1][1] *= -1;
-
-    GPUDrawPushConstants push_constants;
-    push_constants.worldMatrix = projection * view;
-    push_constants.vertexBuffer = mesh->meshBuffers.vertexBufferAddress;
-    vkCmdPushConstants(cmd, _meshPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &push_constants);
-    // index buffer for all submeshes in this mesh.
-    vkCmdBindIndexBuffer(cmd, mesh->meshBuffers.indexBuffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-    // draw each submesh of this mesh.
-    for (auto& surface : mesh->surfaces) {
-        vkCmdDrawIndexed(cmd, surface.count, 1, surface.startIndex, 0, 0);
-    }
-    */
 }
 
 void VulkanEngine::draw(float deltaTime)
@@ -1468,23 +1415,6 @@ void VulkanEngine::run()
                 break;
             default:
                 break;
-            /*
-            case SDL_KEYDOWN:
-                if (e.key.keysym.sym == SDLK_UP) {
-                    // Up Arrow
-                    fmt::println("Key press up detected.");
-                } else if (e.key.keysym.sym == SDLK_DOWN) {
-                    // Down Arrow
-                    fmt::println("Key press down detected.");
-                } else if (e.key.keysym.sym == SDLK_LEFT) {
-                    // Left Arrow
-                    fmt::println("Key press left detected.");
-                } else if (e.key.keysym.sym == SDLK_RIGHT) {
-                    // Right Arrow
-                    fmt::println("Key press right detected.");
-                }
-                break;
-            */
             }
             mainCamera.processSDLEvent(e);
             // send SDL process event.
@@ -1553,48 +1483,3 @@ void VulkanEngine::run()
     }
 }
 
-bool VulkanEngine::is_visible(const RenderObject& obj, const glm::mat4& viewproj) {
-    // box corners.
-    std::array<glm::vec3, 8> corners {
-        glm::vec3 { 1, 1, 1 },
-        glm::vec3 { 1, 1, -1 },
-        glm::vec3 { 1, -1, 1 },
-        glm::vec3 { 1, -1, -1 },
-        glm::vec3 { -1, 1, 1 },
-        glm::vec3 { -1, 1, -1 },
-        glm::vec3 { -1, -1, 1 },
-        glm::vec3 { -1, -1, -1 },
-    };
-
-    // project corner from object space to clip space.
-    glm::mat4 matrix = viewproj * obj.transform;
-    // minimum and maximum of corners.
-    glm::vec3 min = { 1.5, 1.5, 1.5 };
-    glm::vec3 max = { -1.5, -1.5, -1.5 };
-
-    for (int c = 0; c < 8; c++) {
-        // project each corner from object space into clip space
-        glm::vec4 v = matrix * glm::vec4(obj.bounds.origin + (corners[c] * obj.bounds.extents), 1.f);
-
-        // perspective correction
-        v.x = v.x / v.w;
-        v.y = v.y / v.w;
-        v.z = v.z / v.w;
-
-        // find clip space min max bounding box.
-        min = glm::min(glm::vec3{ v.x, v.y, v.z }, min);
-        max = glm::max(glm::vec3{ v.x, v.y, v.z }, max);
-    }
-
-    // check the clip space box is within the view
-    //  z: [0, 1]
-    //  x: [-1, 1]
-    //  y: [-1, 1]
-    // this checks if the bounding box overlaps with the view frustum. 
-    //  if so, it thinks the object is within view (but might not actually be if only bbox intersects viewing volumn).
-    if (min.z > 1.f || max.z < 0.f || min.x > 1.f || max.x < -1.f || min.y > 1.f || max.y < -1.f) {
-        return false;
-    } else {
-        return true;
-    }
-}
