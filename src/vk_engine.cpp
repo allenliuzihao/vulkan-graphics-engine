@@ -1156,31 +1156,46 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
 
     float width = static_cast<float>(_drawExtent.width);
     float height = static_cast<float>(_drawExtent.height);
-
-    //set dynamic viewport and scissor
-    VkViewport viewport = {};
-    viewport.x = 0;
-    viewport.y = 0;
-    viewport.width = width;
-    viewport.height = height;
-    viewport.minDepth = 0.f;
-    viewport.maxDepth = 1.f;
-    vkCmdSetViewport(cmd, 0, 1, &viewport);
-
-    VkRect2D scissor = {};
-    scissor.offset.x = 0;
-    scissor.offset.y = 0;
-    scissor.extent.width = _drawExtent.width;
-    scissor.extent.height = _drawExtent.height;
-    vkCmdSetScissor(cmd, 0, 1, &scissor);
     
-    auto draw = [&](const RenderObject& draw) {
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->pipeline);
-        // two descriptor sets per pipeline.
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 0, 1, &globalDescriptor, 0, nullptr);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 1, 1, &draw.material->materialSet, 0, nullptr);
+    MaterialPipeline* lastPipeline = nullptr;
+    MaterialInstance* lastMaterial = nullptr;
+    VkBuffer lastIndexBuffer = VK_NULL_HANDLE;
 
-        vkCmdBindIndexBuffer(cmd, draw.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+    auto draw = [&](const RenderObject& draw) {
+        // material has ds and pipeline: if material changes
+        if (draw.material != lastMaterial) {
+            lastMaterial = draw.material;
+            //rebind pipeline and descriptors if the material changed: only 2 pipeline. 
+            if (draw.material->pipeline != lastPipeline) {
+                lastPipeline = draw.material->pipeline;
+                vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->pipeline);
+                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 0, 1, &globalDescriptor, 0, nullptr);
+                
+                VkViewport viewport = {};
+                viewport.x = 0;
+                viewport.y = 0;
+                viewport.width = (float)_windowExtent.width;
+                viewport.height = (float)_windowExtent.height;
+                viewport.minDepth = 0.f;
+                viewport.maxDepth = 1.f;
+                vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+                VkRect2D scissor = {};
+                scissor.offset.x = 0;
+                scissor.offset.y = 0;
+                scissor.extent.width = _windowExtent.width;
+                scissor.extent.height = _windowExtent.height;
+                vkCmdSetScissor(cmd, 0, 1, &scissor);
+            }
+            // 
+            vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 1, 1, &draw.material->materialSet, 0, nullptr);
+        }
+
+        //rebind index buffer if needed
+        if (draw.indexBuffer != lastIndexBuffer) {
+            lastIndexBuffer = draw.indexBuffer;
+            vkCmdBindIndexBuffer(cmd, draw.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+        }
 
         GPUDrawPushConstants pushConstants;
         pushConstants.vertexBuffer = draw.vertexBufferAddress;
