@@ -526,7 +526,7 @@ void LoadedGLTF::clearAll() {
             //dont destroy the default images, these will be deleted in the engine.
             continue;
         }
-        creator->destroy_image(v);
+        vkutil::destroy_image(creator->_device, creator->_allocator, v);
     }
     // destroy samplers.
     for (auto& sampler : samplers) {

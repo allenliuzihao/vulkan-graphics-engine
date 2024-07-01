@@ -87,7 +87,7 @@ std::optional<AllocatedImage> vkutil::load_image(VulkanEngine* engine, fastgltf:
                     imagesize.height = height;
                     imagesize.depth = 1;
 
-                    newImage = engine->create_image(data, imagesize, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT,false);
+                    newImage = vkutil::create_image(engine->_device, engine->_graphicsQueue, engine->_allocator, engine->immediateSubmit, data, imagesize, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT,false);
                     stbi_image_free(data);
                 }
             },
@@ -102,7 +102,7 @@ std::optional<AllocatedImage> vkutil::load_image(VulkanEngine* engine, fastgltf:
                 imagesize.height = height;
                 imagesize.depth = 1;
 
-                newImage = engine->create_image(data, imagesize, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT,false);
+                newImage = vkutil::create_image(engine->_device, engine->_graphicsQueue, engine->_allocator, engine->immediateSubmit, data, imagesize, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT,false);
 
                 stbi_image_free(data);
             }
@@ -123,7 +123,7 @@ std::optional<AllocatedImage> vkutil::load_image(VulkanEngine* engine, fastgltf:
                         imagesize.height = height;
                         imagesize.depth = 1;
 
-                        newImage = engine->create_image(data, imagesize, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT,false);
+                        newImage = vkutil::create_image(engine->_device, engine->_graphicsQueue, engine->_allocator, engine->immediateSubmit, data, imagesize, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT,false);
                         stbi_image_free(data);
                     }
                 }
@@ -138,4 +138,89 @@ std::optional<AllocatedImage> vkutil::load_image(VulkanEngine* engine, fastgltf:
     } else {
         return newImage;
     }
+}
+
+AllocatedImage vkutil::create_image(VkDevice device, const VmaAllocator& allocator, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+{
+    // image format and size.
+    AllocatedImage newImage;
+    newImage.imageFormat = format;
+    newImage.imageExtent = size;
+
+    // image format, usage and size.
+    VkImageCreateInfo img_info = vkinit::image_create_info(format, usage, size);
+    if (mipmapped) {
+        // formula for computing the number of mips for an image.
+        img_info.mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(size.width, size.height)))) + 1;
+    }
+
+    // always allocate images on dedicated GPU memory
+    VmaAllocationCreateInfo allocinfo = {};
+    allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    // allocate and create the image on GPU. 
+    VK_CHECK(vmaCreateImage(allocator, &img_info, &allocinfo, &newImage.image, &newImage.allocation, nullptr));
+
+    // if the format is a depth format, we will need to have it use the correct
+    // aspect flag
+    VkImageAspectFlags aspectFlag = VK_IMAGE_ASPECT_COLOR_BIT;
+    if (format == VK_FORMAT_D32_SFLOAT) {
+        aspectFlag = VK_IMAGE_ASPECT_DEPTH_BIT;
+    }
+
+    // build a image-view for the image
+    VkImageViewCreateInfo view_info = vkinit::imageview_create_info(format, newImage.image, aspectFlag);
+    view_info.subresourceRange.levelCount = img_info.mipLevels;
+
+    VK_CHECK(vkCreateImageView(device, &view_info, nullptr, &newImage.imageView));
+
+    return newImage;
+}
+
+// create image and image view.
+AllocatedImage vkutil::create_image(VkDevice device, VkQueue queue, const VmaAllocator& allocator, vkutil::ImmediateSubmit& submit, void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
+{
+    // assume RBGA is 4 bytes, and 1 byte/8 bits per channel.
+    size_t data_size = size.depth * size.width * size.height * 4;
+    // write on CPU, read by GPU. 
+    AllocatedBuffer uploadbuffer = vkutil::create_buffer(allocator, data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
+    // copy source data into the mapped data. 
+    memcpy(uploadbuffer.info.pMappedData, data, data_size);
+
+    // destination is an image. 
+    AllocatedImage new_image = vkutil::create_image(device, allocator, size, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped);
+
+    // do an immediate submit that transfer from buffer to image.
+    submit.immediate_submit(device, queue, [&](VkCommandBuffer cmd) {
+        vkutil::transition_image(cmd, new_image.image, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        // copy from buffer to image.
+        VkBufferImageCopy copyRegion = {};
+        // src buffer. 
+        copyRegion.bufferOffset = 0;
+        // images are tightly packed in buffer based on image extent, or image size.
+        copyRegion.bufferRowLength = 0;
+        copyRegion.bufferImageHeight = 0;
+        // dst image: copy to mip 0, the base image.
+        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copyRegion.imageSubresource.mipLevel = 0;
+        copyRegion.imageSubresource.baseArrayLayer = 0;
+        copyRegion.imageSubresource.layerCount = 1;
+        copyRegion.imageExtent = size;
+
+        // copy the buffer into the image
+        vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+
+        vkutil::transition_image(cmd, new_image.image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    });
+
+    vkutil::destroy_buffer(allocator, uploadbuffer);
+    return new_image;
+}
+
+void vkutil::destroy_image(VkDevice device, VmaAllocator allocator, const AllocatedImage& img)
+{
+    vkDestroyImageView(device, img.imageView, nullptr);
+    vmaDestroyImage(allocator, img.image, img.allocation);
 }

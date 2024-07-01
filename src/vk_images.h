@@ -16,4 +16,9 @@ namespace vkutil {
     void copy_image_to_image(VkCommandBuffer cmd, VkImage source, VkImage destination, VkExtent2D srcSize, VkExtent2D dstSize);
 
     std::optional<AllocatedImage> load_image(VulkanEngine* engine, fastgltf::Asset& asset, fastgltf::Image& image);
+
+    // images. 
+    AllocatedImage create_image(VkDevice device, const VmaAllocator& allocator, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+    AllocatedImage create_image(VkDevice device, VkQueue queue, const VmaAllocator& allocator, vkutil::ImmediateSubmit & submit, void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+    void destroy_image(VkDevice device, VmaAllocator allocator, const AllocatedImage& img);
 };

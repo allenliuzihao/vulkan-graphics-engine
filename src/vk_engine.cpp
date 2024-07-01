@@ -356,30 +356,6 @@ void VulkanEngine::init_imgui() {
 }
 
 void VulkanEngine::init_default_data() {
-    /*
-    std::array<Vertex, 4> rect_vertices;
-    // furthrest. 
-    rect_vertices[0].position = { 0.5,-0.5, 0 };
-    rect_vertices[1].position = { 0.5,0.5, 0 };
-    rect_vertices[2].position = { -0.5,-0.5, 0 };
-    rect_vertices[3].position = { -0.5,0.5, 0 };
-
-    rect_vertices[0].color = { 0,0, 0,1 };
-    rect_vertices[1].color = { 0.5,0.5,0.5 ,1 };
-    rect_vertices[2].color = { 1,0, 0,1 };
-    rect_vertices[3].color = { 0,1, 0,1 };
-
-    std::array<uint32_t, 6> rect_indices;
-    rect_indices[0] = 0;
-    rect_indices[1] = 1;
-    rect_indices[2] = 2;
-    rect_indices[3] = 2;
-    rect_indices[4] = 1;
-    rect_indices[5] = 3;
-    // rect_vertices and rect_indices are passed in as pointers + sizes.
-    _meshData = uploadMesh(rect_indices, rect_vertices);
-    */
-
     std::string gltfFilePath = (ASSET_ROOT_PATH / "basicmesh.glb").string();
     _testMeshes = loadGltfMeshes(this, gltfFilePath).value();
 
@@ -387,15 +363,15 @@ void VulkanEngine::init_default_data() {
     //  0 -> 32
     //  R8G8B8A8, where each component is scaled between [0, 255].
     uint32_t white = glm::packUnorm4x8(glm::vec4(1, 1, 1, 1));
-    _defaultImages[0] = std::move(create_image((void*)&white, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT));
+    _defaultImages[0] = std::move(vkutil::create_image(_device, _graphicsQueue, _allocator, immediateSubmit, (void*)&white, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT));
     _defaultImages[0].name = "white";
 
     uint32_t grey = glm::packUnorm4x8(glm::vec4(0.66f, 0.66f, 0.66f, 1));
-    _defaultImages[1] = std::move(create_image((void*)&grey, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT));
+    _defaultImages[1] = std::move(vkutil::create_image(_device, _graphicsQueue, _allocator, immediateSubmit, (void*)&grey, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT));
     _defaultImages[1].name = "grey";
 
     uint32_t black = glm::packUnorm4x8(glm::vec4(0, 0, 0, 0));
-    _defaultImages[2] = std::move(create_image((void*)&black, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT));
+    _defaultImages[2] = std::move(vkutil::create_image(_device, _graphicsQueue, _allocator, immediateSubmit, (void*)&black, VkExtent3D{1, 1, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT));
     _defaultImages[2].name = "black";
 
     //checkerboard image
@@ -406,7 +382,7 @@ void VulkanEngine::init_default_data() {
             pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? white : black;
         }
     }
-    _defaultImages[3] = std::move(create_image(pixels.data(), VkExtent3D{16, 16, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT));
+    _defaultImages[3] = std::move(vkutil::create_image(_device, _graphicsQueue, _allocator, immediateSubmit, pixels.data(), VkExtent3D{16, 16, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT));
     _defaultImages[3].name = "white-black-checkerboard";
 
     VkSamplerCreateInfo sampl = { .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
@@ -472,7 +448,7 @@ void VulkanEngine::init_default_data() {
         vkDestroySampler(_device, _defaultSamplerLinear, nullptr);
 
         for (uint32_t i = 0; i < 4; ++i) {
-            destroy_image(_defaultImages[i]);
+            vkutil::destroy_image(_device, _allocator, _defaultImages[i]);
         }
 
         // delete allocated meshes.
@@ -532,91 +508,6 @@ void VulkanEngine::destroy_swapchain() {
     }
     // this will also destroy the swapchain images. 
     vkDestroySwapchainKHR(_device, _swapchain, nullptr);
-}
-
-// create image and image view.
-AllocatedImage VulkanEngine::create_image(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
-{
-    // assume RBGA is 4 bytes, and 1 byte/8 bits per channel.
-    size_t data_size = size.depth * size.width * size.height * 4;
-    // write on CPU, read by GPU. 
-    AllocatedBuffer uploadbuffer = vkutil::create_buffer(_allocator, data_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
-    // copy source data into the mapped data. 
-    memcpy(uploadbuffer.info.pMappedData, data, data_size);
-
-    // destination is an image. 
-    AllocatedImage new_image = create_image(size, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped);
-
-    // do an immediate submit that transfer from buffer to image.
-    immediateSubmit.immediate_submit(_device, _graphicsQueue, [&](VkCommandBuffer cmd) {
-        vkutil::transition_image(cmd, new_image.image, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-        // copy from buffer to image.
-        VkBufferImageCopy copyRegion = {};
-        // src buffer. 
-        copyRegion.bufferOffset = 0;
-        // images are tightly packed in buffer based on image extent, or image size.
-        copyRegion.bufferRowLength = 0;
-        copyRegion.bufferImageHeight = 0;
-        // dst image: copy to mip 0, the base image.
-        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        copyRegion.imageSubresource.mipLevel = 0;
-        copyRegion.imageSubresource.baseArrayLayer = 0;
-        copyRegion.imageSubresource.layerCount = 1;
-        copyRegion.imageExtent = size;
-
-        // copy the buffer into the image
-        vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
-
-        vkutil::transition_image(cmd, new_image.image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    });
-
-    vkutil::destroy_buffer(_allocator, uploadbuffer);
-    return new_image;
-}
-
-AllocatedImage VulkanEngine::create_image(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped)
-{
-    // image format and size.
-    AllocatedImage newImage;
-    newImage.imageFormat = format;
-    newImage.imageExtent = size;
-
-    // image format, usage and size.
-    VkImageCreateInfo img_info = vkinit::image_create_info(format, usage, size);
-    if (mipmapped) {
-        // formula for computing the number of mips for an image.
-        img_info.mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(size.width, size.height)))) + 1;
-    }
-
-    // always allocate images on dedicated GPU memory
-    VmaAllocationCreateInfo allocinfo = {};
-    allocinfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-    allocinfo.requiredFlags = VkMemoryPropertyFlags(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    // allocate and create the image on GPU. 
-    VK_CHECK(vmaCreateImage(_allocator, &img_info, &allocinfo, &newImage.image, &newImage.allocation, nullptr));
-
-    // if the format is a depth format, we will need to have it use the correct
-    // aspect flag
-    VkImageAspectFlags aspectFlag = VK_IMAGE_ASPECT_COLOR_BIT;
-    if (format == VK_FORMAT_D32_SFLOAT) {
-        aspectFlag = VK_IMAGE_ASPECT_DEPTH_BIT;
-    }
-
-    // build a image-view for the image
-    VkImageViewCreateInfo view_info = vkinit::imageview_create_info(format, newImage.image, aspectFlag);
-    view_info.subresourceRange.levelCount = img_info.mipLevels;
-
-    VK_CHECK(vkCreateImageView(_device, &view_info, nullptr, &newImage.imageView));
-
-    return newImage;
-}
-
-void VulkanEngine::destroy_image(const AllocatedImage& img)
-{
-    vkDestroyImageView(_device, img.imageView, nullptr);
-    vmaDestroyImage(_allocator, img.image, img.allocation);
 }
 
 // span is pointer + size pair, it doesn't copy the data from array or vector.
