@@ -1626,7 +1626,7 @@ void GLTFMetallic_Roughness::build_pipelines(VulkanEngine* engine)
     pipelineBuilder.set_shaders(meshVertexShader, meshFragShader);
     pipelineBuilder.set_input_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
     pipelineBuilder.set_polygon_mode(VK_POLYGON_MODE_FILL);
-    pipelineBuilder.set_cull_mode(VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
+    pipelineBuilder.set_cull_mode(VK_CULL_MODE_NONE, VK_FRONT_FACE_COUNTER_CLOCKWISE);
     pipelineBuilder.set_multisampling_none();
     pipelineBuilder.disable_blending();
     pipelineBuilder.enable_depthtest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);     // reverse Z. 
@@ -1678,28 +1678,6 @@ void GLTFMetallic_Roughness::destroy_resources(VkDevice device)
 
     vkDestroyDescriptorSetLayout(device, materialLayout, nullptr);
     vkDestroyPipelineLayout(device, opaquePipeline.layout, nullptr);
-}
-
-void MeshNode::Draw(const glm::mat4& topMatrix, DrawContext& ctx) {
-    glm::mat4 nodeMatrix = topMatrix * worldTransform;
-    for (auto& s : mesh->surfaces) {
-        RenderObject def;
-        def.indexCount = s.count;
-        def.firstIndex = s.startIndex;
-        def.indexBuffer = mesh->meshBuffers.indexBuffer.buffer;
-        def.material = &s.material->data;
-        def.bounds = s.bounds;
-        def.transform = nodeMatrix;
-        def.vertexBufferAddress = mesh->meshBuffers.vertexBufferAddress;
-
-        if (def.material->passType == MaterialPass::Transparent) {
-            ctx.TransparentSurfaces.push_back(std::move(def));
-        } else {
-            ctx.OpaqueSurfaces.push_back(std::move(def));
-        }
-    }
-    // recurse down to children.
-    Node::Draw(topMatrix, ctx);
 }
 
 bool VulkanEngine::is_visible(const RenderObject& obj, const glm::mat4& viewproj) {

@@ -40,6 +40,13 @@ struct MeshAsset {
     GPUMeshBuffers meshBuffers;
 };
 
+struct MeshNode : public Node {
+    std::shared_ptr<MeshAsset> mesh;
+
+    // top matrix is the instance transform.
+    virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) override;
+};
+
 //forward declaration
 class VulkanEngine;
 

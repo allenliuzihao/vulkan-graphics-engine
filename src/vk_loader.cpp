@@ -533,3 +533,25 @@ void LoadedGLTF::clearAll() {
         vkDestroySampler(dv, sampler, nullptr);
     }
 }
+
+void MeshNode::Draw(const glm::mat4& topMatrix, DrawContext& ctx) {
+    glm::mat4 nodeMatrix = topMatrix * worldTransform;
+    for (auto& s : mesh->surfaces) {
+        RenderObject def;
+        def.indexCount = s.count;
+        def.firstIndex = s.startIndex;
+        def.indexBuffer = mesh->meshBuffers.indexBuffer.buffer;
+        def.material = &s.material->data;
+        def.bounds = s.bounds;
+        def.transform = nodeMatrix;
+        def.vertexBufferAddress = mesh->meshBuffers.vertexBufferAddress;
+
+        if (def.material->passType == MaterialPass::Transparent) {
+            ctx.TransparentSurfaces.push_back(std::move(def));
+        } else {
+            ctx.OpaqueSurfaces.push_back(std::move(def));
+        }
+    }
+    // recurse down to children.
+    Node::Draw(topMatrix, ctx);
+}

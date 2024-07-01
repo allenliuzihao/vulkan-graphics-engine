@@ -111,16 +111,8 @@ const auto PROJECT_ROOT_PATH = CURRENT_SOURCE_PATH.parent_path().parent_path();
 const auto SHADER_ROOT_PATH = PROJECT_ROOT_PATH / "shaders";
 const auto ASSET_ROOT_PATH = PROJECT_ROOT_PATH / "assets";
 
-struct MeshAsset;
-
-struct MeshNode : public Node {
-	std::shared_ptr<MeshAsset> mesh;
-
-	// top matrix is the instance transform.
-	virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) override;
-};
-
 struct LoadedGLTF;
+struct MeshAsset;
 
 class VulkanEngine {
 public:
