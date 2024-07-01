@@ -1127,13 +1127,21 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     //begin clock
     auto start = std::chrono::system_clock::now();
 
-    std::vector<uint32_t> opaque_draws;
+    std::vector<uint32_t> opaque_draws, transparent_draws;
     opaque_draws.reserve(mainDrawContext.OpaqueSurfaces.size());
+    transparent_draws.reserve(mainDrawContext.TransparentSurfaces.size());
 
     for (uint32_t i = 0; i < mainDrawContext.OpaqueSurfaces.size(); i++) {
         // CPU frustum culling.
         if (is_visible(mainDrawContext.OpaqueSurfaces[i], sceneData.viewproj)) {
             opaque_draws.push_back(i);
+        }
+    }
+
+    for (uint32_t i = 0; i < mainDrawContext.TransparentSurfaces.size(); i++) {
+        // CPU frustum culling.
+        if (is_visible(mainDrawContext.TransparentSurfaces[i], sceneData.viewproj)) {
+            transparent_draws.push_back(i);
         }
     }
 
@@ -1151,6 +1159,20 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
             return A.material->pipeline < B.material->pipeline;
         }
     });
+
+    // sort the transparent surfaces by camera distance
+    std::sort(std::execution::par_unseq, transparent_draws.begin(), transparent_draws.end(), [&](const auto& iA, const auto& iB) {
+        const RenderObject& A = mainDrawContext.TransparentSurfaces[iA];
+        const RenderObject& B = mainDrawContext.TransparentSurfaces[iB];
+
+        glm::vec4 A_origin = A.transform * glm::vec4(A.bounds.origin, 1.0);
+        glm::vec4 B_origin = B.transform * glm::vec4(B.bounds.origin, 1.0);
+
+        double distanceA = glm::distance(mainCamera.position, glm::vec3(A_origin.x, A_origin.y, A_origin.z));
+        double distanceB = glm::distance(mainCamera.position, glm::vec3(B_origin.x, B_origin.y, B_origin.z));
+        return distanceA > distanceB;
+    });
+
 
     //allocate a new uniform buffer for the scene data
     //  write on CPU and accessed by GPU: GPU memory accessible by CPU (host visible); write on CPU with fast access on the GPU.
@@ -1244,8 +1266,8 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     }
 
     // need to properly sort transparent surfaces within the view frustum. 
-    for (auto& r : mainDrawContext.TransparentSurfaces) {
-        draw(r);
+    for (auto& r : transparent_draws) {
+        draw(mainDrawContext.TransparentSurfaces[r]);
     }
     
     vkCmdEndRendering(cmd);
