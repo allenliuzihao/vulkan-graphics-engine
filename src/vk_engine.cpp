@@ -1127,6 +1127,28 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     //begin clock
     auto start = std::chrono::system_clock::now();
 
+    std::vector<uint32_t> opaque_draws;
+    opaque_draws.reserve(mainDrawContext.OpaqueSurfaces.size());
+
+    for (uint32_t i = 0; i < mainDrawContext.OpaqueSurfaces.size(); i++) {
+        opaque_draws.push_back(i);
+    }
+
+    // sort the opaque surfaces by material and mesh
+    std::sort(opaque_draws.begin(), opaque_draws.end(), [&](const auto& iA, const auto& iB) {
+        const RenderObject& A = mainDrawContext.OpaqueSurfaces[iA];
+        const RenderObject& B = mainDrawContext.OpaqueSurfaces[iB];
+        if (A.material == B.material) {
+            // same material, sort by index buffer.
+            return A.indexBuffer < B.indexBuffer;
+        } else {
+            if (A.material->pipeline == B.material->pipeline) {
+                return A.material->materialSet < B.material->materialSet;
+            }
+            return A.material->pipeline < B.material->pipeline;
+        }
+    });
+
     //allocate a new uniform buffer for the scene data
     //  write on CPU and accessed by GPU: GPU memory accessible by CPU (host visible); write on CPU with fast access on the GPU.
     AllocatedBuffer gpuSceneDataBuffer = create_buffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
@@ -1213,8 +1235,8 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
         stats.triangle_count += draw.indexCount / 3;
     };
 
-    for (auto& r : mainDrawContext.OpaqueSurfaces) {
-        draw(r);
+    for (auto& r : opaque_draws) {
+        draw(mainDrawContext.OpaqueSurfaces[r]);
     }
 
     // need to properly sort transparent surfaces within the view frustum. 
@@ -1592,7 +1614,7 @@ void GLTFMetallic_Roughness::build_pipelines(VulkanEngine* engine)
 
     // create the transparent variant
     pipelineBuilder.enable_blending_alphablend();
-    // disable depth test.
+    // disable depth test for blending.
     pipelineBuilder.enable_depthtest(false, VK_COMPARE_OP_GREATER_OR_EQUAL);
 
     transparentPipeline.pipeline = pipelineBuilder.build_pipeline(engine->_device);
