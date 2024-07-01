@@ -1,18 +1,19 @@
 ﻿#pragma once
 
-#include "stb_image.h"
 #include <iostream>
 
-#include "vk_initializers.h"
-#include "vk_types.h"
-#include <vk_descriptors.h>
 #include <glm/gtx/quaternion.hpp>
 
 #include <fastgltf/glm_element_traits.hpp>
 #include <fastgltf/parser.hpp>
 #include <fastgltf/tools.hpp>
 
-#include <vk_types.h>
+#include "vk_initializers.h"
+#include "vk_types.h"
+#include <vk_descriptors.h>
+#include "vk_images.h"
+#include "vk_engine.h"
+
 #include <unordered_map>
 #include <filesystem>
 

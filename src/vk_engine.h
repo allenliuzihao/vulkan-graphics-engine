@@ -111,6 +111,8 @@ struct MeshNode : public Node {
 	virtual void Draw(const glm::mat4& topMatrix, DrawContext& ctx) override;
 };
 
+struct LoadedGLTF;
+
 class VulkanEngine {
 public:
 	VkInstance _instance;// Vulkan library handle
