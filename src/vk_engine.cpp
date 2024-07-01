@@ -1165,14 +1165,15 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
         const RenderObject& A = mainDrawContext.TransparentSurfaces[iA];
         const RenderObject& B = mainDrawContext.TransparentSurfaces[iB];
 
-        glm::vec4 A_origin = A.transform * glm::vec4(A.bounds.origin, 1.0);
-        glm::vec4 B_origin = B.transform * glm::vec4(B.bounds.origin, 1.0);
+        // transform bbox to world space.
+        glm::vec4 A_origin = sceneData.view * A.transform * glm::vec4(A.bounds.origin, 1.0);
+        glm::vec4 B_origin = sceneData.view * B.transform * glm::vec4(B.bounds.origin, 1.0);
 
-        double distanceA = glm::distance(mainCamera.position, glm::vec3(A_origin.x, A_origin.y, A_origin.z));
-        double distanceB = glm::distance(mainCamera.position, glm::vec3(B_origin.x, B_origin.y, B_origin.z));
+        // view space comparison. 
+        double distanceA = std::abs(A_origin.z);// glm::distance(mainCamera.position, glm::vec3(A_origin.x, A_origin.y, A_origin.z));
+        double distanceB = std::abs(B_origin.z);// glm::distance(mainCamera.position, glm::vec3(B_origin.x, B_origin.y, B_origin.z));
         return distanceA > distanceB;
     });
-
 
     //allocate a new uniform buffer for the scene data
     //  write on CPU and accessed by GPU: GPU memory accessible by CPU (host visible); write on CPU with fast access on the GPU.
@@ -1625,7 +1626,7 @@ void GLTFMetallic_Roughness::build_pipelines(VulkanEngine* engine)
     pipelineBuilder.set_shaders(meshVertexShader, meshFragShader);
     pipelineBuilder.set_input_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
     pipelineBuilder.set_polygon_mode(VK_POLYGON_MODE_FILL);
-    pipelineBuilder.set_cull_mode(VK_CULL_MODE_NONE, VK_FRONT_FACE_CLOCKWISE);
+    pipelineBuilder.set_cull_mode(VK_CULL_MODE_BACK_BIT, VK_FRONT_FACE_COUNTER_CLOCKWISE);
     pipelineBuilder.set_multisampling_none();
     pipelineBuilder.disable_blending();
     pipelineBuilder.enable_depthtest(true, VK_COMPARE_OP_GREATER_OR_EQUAL);     // reverse Z. 

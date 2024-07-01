@@ -440,8 +440,6 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::f
         newmesh->meshBuffers = std::move(engine->uploadMesh(indices, vertices));
     }
 
-
-
     // load all nodes and their meshes
     for (fastgltf::Node& node : gltf.nodes) {
         std::shared_ptr<Node> newNode;
