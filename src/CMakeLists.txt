@@ -17,8 +17,11 @@ add_executable (engine
   vk_loader.cpp
   vk_buffer.h
   vk_buffer.cpp
+  vk_material.h
+  vk_material.cpp
   camera.cpp
   camera.h
+  vk_constants.h
 )
 
 set_property(TARGET engine PROPERTY CXX_STANDARD 20)

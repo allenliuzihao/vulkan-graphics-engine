@@ -3,10 +3,12 @@
 
 #pragma once
 
+#include <vk_constants.h>
 #include <vk_types.h>
 #include <vk_descriptors.h>
 #include <vk_loader.h>
 #include <vk_buffer.h>
+#include <vk_material.h>
 #include <camera.h>
 
 #include <filesystem>
@@ -63,38 +65,6 @@ struct ComputeEffect {
 	ComputePushConstants data;
 };
 
-class VulkanEngine;
-struct GLTFMetallic_Roughness {
-	MaterialPipeline opaquePipeline;
-	MaterialPipeline transparentPipeline;
-	// ds layout for both materials.
-	VkDescriptorSetLayout materialLayout;
-
-	struct alignas(64) MaterialConstants {
-		glm::vec4 colorFactors;				// multiplied with color texture.
-		glm::vec4 metal_rough_factors;		// metallic (R), roughness (G)
-	};
-
-	// textures and uniform buffers.
-	struct MaterialResources {
-		// textures.
-		AllocatedImage colorImage;
-		VkSampler colorSampler;
-		AllocatedImage metalRoughImage;
-		VkSampler metalRoughSampler;
-		// uniform buffer.
-		VkBuffer dataBuffer;
-		uint32_t dataBufferOffset;
-	};
-
-	DescriptorWriter writer;
-
-	void build_pipelines(VulkanEngine* engine);
-	void destroy_resources(VkDevice device);
-
-	MaterialInstance write_material(VkDevice device, MaterialPass pass, const MaterialResources& resources, DescriptorAllocatorGrowable& descriptorAllocator);
-};
-
 struct EngineStats {
 	float frametime;
 	int triangle_count;
@@ -102,15 +72,6 @@ struct EngineStats {
 	float scene_update_time;
 	float mesh_draw_time;
 };
-
-constexpr uint64_t MAX_TIMEOUT = UINT64_MAX;
-constexpr unsigned int FRAME_OVERLAP = 3;
-
-// project paths.
-const auto CURRENT_SOURCE_PATH = std::filesystem::current_path();
-const auto PROJECT_ROOT_PATH = CURRENT_SOURCE_PATH.parent_path().parent_path();
-const auto SHADER_ROOT_PATH = PROJECT_ROOT_PATH / "shaders";
-const auto ASSET_ROOT_PATH = PROJECT_ROOT_PATH / "assets";
 
 struct LoadedGLTF;
 struct MeshAsset;
