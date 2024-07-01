@@ -1160,6 +1160,23 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     MaterialPipeline* lastPipeline = nullptr;
     MaterialInstance* lastMaterial = nullptr;
     VkBuffer lastIndexBuffer = VK_NULL_HANDLE;
+    bool hasBoundGlobalDescriptor = false;
+
+    VkViewport viewport = {};
+    viewport.x = 0;
+    viewport.y = 0;
+    viewport.width = (float)_windowExtent.width;
+    viewport.height = (float)_windowExtent.height;
+    viewport.minDepth = 0.f;
+    viewport.maxDepth = 1.f;
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+    VkRect2D scissor = {};
+    scissor.offset.x = 0;
+    scissor.offset.y = 0;
+    scissor.extent.width = _windowExtent.width;
+    scissor.extent.height = _windowExtent.height;
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
 
     auto draw = [&](const RenderObject& draw) {
         // material has ds and pipeline: if material changes
@@ -1169,23 +1186,10 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
             if (draw.material->pipeline != lastPipeline) {
                 lastPipeline = draw.material->pipeline;
                 vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->pipeline);
-                vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 0, 1, &globalDescriptor, 0, nullptr);
-                
-                VkViewport viewport = {};
-                viewport.x = 0;
-                viewport.y = 0;
-                viewport.width = (float)_windowExtent.width;
-                viewport.height = (float)_windowExtent.height;
-                viewport.minDepth = 0.f;
-                viewport.maxDepth = 1.f;
-                vkCmdSetViewport(cmd, 0, 1, &viewport);
-
-                VkRect2D scissor = {};
-                scissor.offset.x = 0;
-                scissor.offset.y = 0;
-                scissor.extent.width = _windowExtent.width;
-                scissor.extent.height = _windowExtent.height;
-                vkCmdSetScissor(cmd, 0, 1, &scissor);
+                if (!hasBoundGlobalDescriptor) {
+                    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 0, 1, &globalDescriptor, 0, nullptr);
+                    hasBoundGlobalDescriptor = true;
+                }
             }
             // 
             vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, draw.material->pipeline->layout, 1, 1, &draw.material->materialSet, 0, nullptr);

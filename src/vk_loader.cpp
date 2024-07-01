@@ -315,6 +315,16 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::f
             materialResources.colorSampler = file.samplers[sampler];
         }
 
+        if (mat.pbrData.metallicRoughnessTexture.has_value()) {
+            // which image and which sampler.
+            size_t img = gltf.textures[mat.pbrData.metallicRoughnessTexture.value().textureIndex].imageIndex.value();
+            size_t sampler = gltf.textures[mat.pbrData.metallicRoughnessTexture.value().textureIndex].samplerIndex.value();
+
+            // which image to use as pbr texture (default chcker board texture instead)
+            materialResources.metalRoughImage = images[img];
+            materialResources.metalRoughSampler = file.samplers[sampler];
+        }
+
         // build material, including both buffers and images.
         newMat->data = engine->metalRoughMaterial.write_material(engine->_device, passType, materialResources, file.descriptorPool);
 
