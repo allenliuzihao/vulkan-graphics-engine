@@ -94,19 +94,22 @@ struct MaterialInstance {
     MaterialPass passType;
 };
 
+struct Bounds {
+    glm::vec3 origin;
+    float sphereRadius;
+    glm::vec3 extents;
+};
+
 struct RenderObject {
     // describes indices for a mesh
     uint32_t indexCount;
     uint32_t firstIndex;
     VkBuffer indexBuffer;
 
-    glm::vec3 approximatePosition;
-
     // material for that mesh.
     //  pipeline and descriptor set for a material.
     MaterialInstance* material;
-
-    // push constant.
+    Bounds bounds;
     // transformation of that mesh.
     glm::mat4 transform;
     // vertex buffer GPU pointer.

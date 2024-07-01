@@ -423,11 +423,24 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::f
                 newSurface.material = materials[0];
             }
 
-            newmesh->surfaces.push_back(newSurface);
+            //loop the vertices of this submesh, find min/max bounds in object space.
+            glm::vec3 minpos = vertices[initial_vtx].position;
+            glm::vec3 maxpos = vertices[initial_vtx].position;
+            for (int i = initial_vtx; i < vertices.size(); i++) {
+                minpos = glm::min(minpos, vertices[i].position);
+                maxpos = glm::max(maxpos, vertices[i].position);
+            }
+            // calculate origin and extents from the min/max, use extent lenght for radius
+            newSurface.bounds.origin = (maxpos + minpos) / 2.f;     // origin is the middle of these two points.
+            newSurface.bounds.extents = (maxpos - minpos) / 2.f;    // 
+            newSurface.bounds.sphereRadius = glm::length(newSurface.bounds.extents);
+            newmesh->surfaces.push_back(std::move(newSurface));
         }
 
-        newmesh->meshBuffers = engine->uploadMesh(indices, vertices);
+        newmesh->meshBuffers = std::move(engine->uploadMesh(indices, vertices));
     }
+
+
 
     // load all nodes and their meshes
     for (fastgltf::Node& node : gltf.nodes) {
