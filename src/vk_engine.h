@@ -93,6 +93,14 @@ struct GLTFMetallic_Roughness {
 	MaterialInstance write_material(VkDevice device, MaterialPass pass, const MaterialResources& resources, DescriptorAllocatorGrowable& descriptorAllocator);
 };
 
+struct EngineStats {
+	float frametime;
+	int triangle_count;
+	int drawcall_count;
+	float scene_update_time;
+	float mesh_draw_time;
+};
+
 constexpr uint64_t MAX_TIMEOUT = UINT64_MAX;
 constexpr unsigned int FRAME_OVERLAP = 3;
 
@@ -205,7 +213,7 @@ public:
 
 	std::vector<std::shared_ptr<MeshAsset>> _testMeshes;
 	int currentMesh { 0 };
-	bool resize_requested;
+	bool resize_requested = false;
 
 	// white, grey, black, magenta.
 	AllocatedImage _defaultImages[4];
@@ -226,6 +234,7 @@ public:
 
 	// camera.
 	Camera mainCamera;
+	EngineStats stats;
 
 	// create buffer.
 	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);

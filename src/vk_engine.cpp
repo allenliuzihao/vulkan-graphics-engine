@@ -1179,7 +1179,7 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
         draw(r);
     }
 
-    // sort transparent surfaces?
+    // need to properly sort transparent surfaces within the view frustum. 
     for (auto& r : mainDrawContext.TransparentSurfaces) {
         draw(r);
     }
@@ -1380,6 +1380,13 @@ void VulkanEngine::run()
 
     // main loop
     while (!bQuit) {
+        //begin clock
+        auto start = std::chrono::system_clock::now();
+
+        if (resize_requested) {
+            resize_swapchain();
+        }
+
         // Handle events on queue, itearte through each type of event.
         while (SDL_PollEvent(&e) != 0) {
             // close the window when user alt-f4s or clicks the X button
@@ -1459,17 +1466,18 @@ void VulkanEngine::run()
         //make imgui calculate internal draw structures
         ImGui::Render();
 
-        // compute delta time.
+        // update draw with delta time.
         auto now = std::chrono::steady_clock::now();
-        deltaTime = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate).count() / 1000.0f;
+        auto deltaTimeClock = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate);
+        deltaTime = deltaTimeClock.count() / 1000.0f;   // delta time in seconds
+        draw(deltaTime);
         lastUpdate = now;
 
-        // update draw.
-        draw(deltaTime);
-
-        if (resize_requested) {
-            resize_swapchain();
-        }
+        //get clock again, compare with start clock
+        auto end = std::chrono::system_clock::now();
+        //convert to microseconds (integer), and then come back to miliseconds
+        auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        stats.frametime = elapsed.count() / 1000.f;
     }
 }
 

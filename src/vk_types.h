@@ -100,6 +100,8 @@ struct RenderObject {
     uint32_t firstIndex;
     VkBuffer indexBuffer;
 
+    glm::vec3 approximatePosition;
+
     // material for that mesh.
     //  pipeline and descriptor set for a material.
     MaterialInstance* material;
