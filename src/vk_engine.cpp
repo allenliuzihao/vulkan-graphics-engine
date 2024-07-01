@@ -1064,6 +1064,8 @@ void VulkanEngine::record_draw() {
 
 void VulkanEngine::update_scene(float deltaTime)
 {
+    auto start = std::chrono::system_clock::now();
+
     mainCamera.update(deltaTime);
    
     // view matrix.
@@ -1080,6 +1082,13 @@ void VulkanEngine::update_scene(float deltaTime)
     sceneData.ambientColor = glm::vec4(.1f);
     sceneData.sunlightColor = glm::vec4(1.f);
     //sceneData.sunlightDirection = glm::vec4(0, 1, 0.1, 1.f);
+    // traverse scene nodes
+    record_draw();
+
+    auto end = std::chrono::system_clock::now();
+    //convert to microseconds (integer), and then come back to miliseconds
+    auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    stats.scene_update_time = elapsed.count() / 1000.f;
 }
 
 void VulkanEngine::draw_background(VkCommandBuffer cmd, const FrameData& frame) {
@@ -1112,6 +1121,12 @@ void VulkanEngine::draw_background(VkCommandBuffer cmd, const FrameData& frame) 
 
 void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
 {
+    //reset counters
+    stats.drawcall_count = 0;
+    stats.triangle_count = 0;
+    //begin clock
+    auto start = std::chrono::system_clock::now();
+
     //allocate a new uniform buffer for the scene data
     //  write on CPU and accessed by GPU: GPU memory accessible by CPU (host visible); write on CPU with fast access on the GPU.
     AllocatedBuffer gpuSceneDataBuffer = create_buffer(sizeof(GPUSceneData), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VMA_MEMORY_USAGE_CPU_TO_GPU);
@@ -1173,6 +1188,10 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
         vkCmdPushConstants(cmd, draw.material->pipeline->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(GPUDrawPushConstants), &pushConstants);
 
         vkCmdDrawIndexed(cmd, draw.indexCount, 1, draw.firstIndex, 0, 0);
+        
+        //add counters for triangles and draws
+        stats.drawcall_count++;
+        stats.triangle_count += draw.indexCount / 3;
     };
 
     for (auto& r : mainDrawContext.OpaqueSurfaces) {
@@ -1185,6 +1204,11 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     }
     
     vkCmdEndRendering(cmd);
+
+    auto end = std::chrono::system_clock::now();
+    //convert to microseconds (integer), and then come back to miliseconds
+    auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    stats.mesh_draw_time = elapsed.count() / 1000.f;
 
     /*
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, _meshPipeline);
@@ -1232,8 +1256,6 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
 void VulkanEngine::draw(float deltaTime)
 {
     update_scene(deltaTime);
-
-    record_draw();
 
     // upsampling only from draw image to swapchain. 
     _drawExtent.height = (uint32_t) (std::min(_swapchainExtent.height, get_current_frame()._drawImage.imageExtent.height) * renderScale);
@@ -1461,6 +1483,14 @@ void VulkanEngine::run()
 
             ImGui::SliderFloat("Render Scale", &renderScale, 0.3f, 1.0f);
         }
+        ImGui::End();
+
+        ImGui::Begin("Stats");
+        ImGui::Text("frametime %f ms", stats.frametime);
+        ImGui::Text("draw time %f ms", stats.mesh_draw_time);
+        ImGui::Text("update time %f ms", stats.scene_update_time);
+        ImGui::Text("triangles %i", stats.triangle_count);
+        ImGui::Text("draws %i", stats.drawcall_count);
         ImGui::End();
 
         //make imgui calculate internal draw structures
