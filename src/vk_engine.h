@@ -68,9 +68,9 @@ struct GLTFMetallic_Roughness {
 	// ds layout for both materials.
 	VkDescriptorSetLayout materialLayout;
 
-	struct MaterialConstants {
+	struct alignas(64) MaterialConstants {
 		glm::vec4 colorFactors;				// multiplied with color texture.
-		glm::vec4 metal_rough_factors;		// metallic (R), roughness (B)
+		glm::vec4 metal_rough_factors;		// metallic (R), roughness (G)
 	};
 
 	// textures and uniform buffers.
@@ -217,12 +217,22 @@ public:
 
 	DrawContext mainDrawContext;
 	std::unordered_map<std::string, std::shared_ptr<Node>> loadedNodes;
+	std::unordered_map<std::string, std::shared_ptr<LoadedGLTF>> loadedScenes;
 	void update_scene(float deltaTime);
 
 	void record_draw();
 
 	// camera.
 	Camera mainCamera;
+
+	// create buffer.
+	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
+	void destroy_buffer(const AllocatedBuffer& buffer);
+
+	// images. 
+	AllocatedImage create_image(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+	AllocatedImage create_image(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
+	void destroy_image(const AllocatedImage& img);
 private:
 	void init_default_data();
 	void init_imgui();
@@ -239,13 +249,4 @@ private:
 	void create_swapchain(uint32_t width, uint32_t height);
 	void destroy_swapchain();
 	void resize_swapchain();
-
-	// create buffer.
-	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
-	void destroy_buffer(const AllocatedBuffer& buffer);
-
-	// images. 
-	AllocatedImage create_image(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
-	AllocatedImage create_image(void* data, VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
-	void destroy_image(const AllocatedImage& img);
 };

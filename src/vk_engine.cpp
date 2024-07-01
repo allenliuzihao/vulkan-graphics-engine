@@ -958,10 +958,16 @@ void VulkanEngine::init()
 
     // initialize camera.
     mainCamera.velocity = glm::vec3(0.f);
-    mainCamera.position = glm::vec3(0, 0, 5);
+    mainCamera.position = glm::vec3(30.f, -00.f, -085.f);
 
     mainCamera.pitch = 0;
     mainCamera.yaw = 0;
+
+    std::filesystem::path structurePath = ASSET_ROOT_PATH / "structure.glb";
+    auto structureFile = loadGltf(this, structurePath);
+    assert(structureFile.has_value());
+
+    loadedScenes["structure"] = *structureFile;
 
     // everything went fine
     _isInitialized = true;
@@ -972,6 +978,8 @@ void VulkanEngine::cleanup()
     if (_isInitialized) {
         //make sure the gpu has stopped doing its things
         vkDeviceWaitIdle(_device);
+
+        loadedScenes.clear();
 
         // destroy command pool. don't destroy individual command buffers.
         for (int i = 0; i < FRAME_OVERLAP; i++) {
@@ -1047,6 +1055,8 @@ void VulkanEngine::record_draw() {
 
         cube->Draw(translation * scale, mainDrawContext);
     }
+
+    loadedScenes["structure"]->Draw(glm::mat4{ 1.f }, mainDrawContext);
 }
 
 void VulkanEngine::update_scene(float deltaTime)
@@ -1438,7 +1448,7 @@ void VulkanEngine::run()
 
         // compute delta time.
         auto now = std::chrono::steady_clock::now();
-        deltaTime = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate).count() / 1000.0;
+        deltaTime = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastUpdate).count() / 1000.0f;
         lastUpdate = now;
 
         // update draw.
