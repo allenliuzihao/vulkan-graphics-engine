@@ -6,6 +6,7 @@
 #include <vk_types.h>
 #include <vk_descriptors.h>
 #include <vk_loader.h>
+#include <vk_buffer.h>
 #include <camera.h>
 
 #include <filesystem>
@@ -228,10 +229,6 @@ public:
 	// camera.
 	Camera mainCamera;
 	EngineStats stats;
-
-	// create buffer.
-	AllocatedBuffer create_buffer(size_t allocSize, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage);
-	void destroy_buffer(const AllocatedBuffer& buffer);
 
 	// images. 
 	AllocatedImage create_image(VkExtent3D size, VkFormat format, VkImageUsageFlags usage, bool mipmapped = false);
