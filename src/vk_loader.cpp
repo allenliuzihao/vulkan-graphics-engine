@@ -254,7 +254,17 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::f
 
     // load all textures as checkerboard.
     for (fastgltf::Image& image : gltf.images) {
-        images.push_back(engine->_defaultImages[3]);
+        std::optional<AllocatedImage> img = vkutil::load_image(engine, gltf, image);
+
+        if (img.has_value()) {
+            images.push_back(*img);
+            file.images[image.name.c_str()] = std::move(*img);
+        } else {
+            // we failed to load, so lets give the slot a default white texture to not
+            // completely break loading
+            images.push_back(engine->_defaultImages[3]);
+            std::cout << "gltf failed to load texture " << image.name << std::endl;
+        }
     }
 
     // create buffer to hold the material data
@@ -480,17 +490,24 @@ void LoadedGLTF::Draw(const glm::mat4& topMatrix, DrawContext& ctx)
 void LoadedGLTF::clearAll() {
     VkDevice dv = creator->_device;
 
+    // destroy all the allocated descriptor pools.
     descriptorPool.destroy_pools(dv);
+    // destroy material buffers for uniform.
     creator->destroy_buffer(materialDataBuffer);
-
+    // deallocate mesh index and vertex buffers.
     for (auto& [k, v] : meshes) {
         creator->destroy_buffer(v->meshBuffers.indexBuffer);
         creator->destroy_buffer(v->meshBuffers.vertexBuffer);
     }
-
+    // deallocate images.
     for (auto& [k, v] : images) {
+        if (v.image == creator->_defaultImages[3].image) {
+            //dont destroy the default images, these will be deleted in the engine.
+            continue;
+        }
+        creator->destroy_image(v);
     }
-
+    // destroy samplers.
     for (auto& sampler : samplers) {
         vkDestroySampler(dv, sampler, nullptr);
     }

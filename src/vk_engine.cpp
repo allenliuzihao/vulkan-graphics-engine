@@ -618,15 +618,15 @@ void VulkanEngine::init_default_data() {
     _defaultImages[2].name = "black";
 
     //checkerboard image
-    uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 0, 1, 1));
+    //uint32_t magenta = glm::packUnorm4x8(glm::vec4(1, 1, 1, 1));
     std::array<uint32_t, 16 * 16> pixels; //for 16x16 checkerboard texture
     for (int y = 0; y < 16; y++) {           // over row
         for (int x = 0; x < 16; x++) {       // over column
-            pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
+            pixels[y * 16 + x] = ((x % 2) ^ (y % 2)) ? white : black;
         }
     }
     _defaultImages[3] = std::move(create_image(pixels.data(), VkExtent3D{16, 16, 1}, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT));
-    _defaultImages[3].name = "magenta";
+    _defaultImages[3].name = "white-black-checkerboard";
 
     VkSamplerCreateInfo sampl = { .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
     sampl.magFilter = VK_FILTER_NEAREST;
@@ -813,7 +813,7 @@ AllocatedImage VulkanEngine::create_image(void* data, VkExtent3D size, VkFormat 
         // copy the buffer into the image
         vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
-        vkutil::transition_image(cmd, new_image.image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL);
+        vkutil::transition_image(cmd, new_image.image, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, VK_ACCESS_2_SHADER_READ_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     });
 
     destroy_buffer(uploadbuffer);
@@ -967,7 +967,7 @@ void VulkanEngine::init()
     auto structureFile = loadGltf(this, structurePath);
     assert(structureFile.has_value());
 
-    loadedScenes["structure"] = *structureFile;
+    loadedScenes["structure"] = std::move( *structureFile);
 
     // everything went fine
     _isInitialized = true;
@@ -1056,6 +1056,7 @@ void VulkanEngine::record_draw() {
         cube->Draw(translation * scale, mainDrawContext);
     }
 
+    // read only resources on GPU can be read simutanesouly. 
     loadedScenes["structure"]->Draw(glm::mat4{ 1.f }, mainDrawContext);
 }
 
