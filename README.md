@@ -2,7 +2,8 @@ This is a lightweight rendering engine written in Vulkan based on the Vulkan Gui
 
 Some of the modern engine features include:
 
-1. drawing vertices using GPU memory pointer without using vertex buffer.
+1. drawing vertices using GPU memory pointer without using vertex buffer fixed function hardware for vertex processing. 
 2. CPU frustum culling to cull draw calls.
 3. Draw call sorting of transparent and opaque objects, respectively.
 4. More precise synchronization and pipeline barrier compared to the original project.
+5. dynamic rendering to set up the render attachments for draw calls.
