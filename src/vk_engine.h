@@ -9,6 +9,7 @@
 #include <camera.h>
 
 #include <filesystem>
+#include <execution>
 
 struct DeletionQueue
 {

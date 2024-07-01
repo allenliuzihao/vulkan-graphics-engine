@@ -1135,7 +1135,7 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
     }
 
     // sort the opaque surfaces by material and mesh
-    std::sort(opaque_draws.begin(), opaque_draws.end(), [&](const auto& iA, const auto& iB) {
+    std::sort(std::execution::par_unseq, opaque_draws.begin(), opaque_draws.end(), [&](const auto& iA, const auto& iB) {
         const RenderObject& A = mainDrawContext.OpaqueSurfaces[iA];
         const RenderObject& B = mainDrawContext.OpaqueSurfaces[iB];
         if (A.material == B.material) {
@@ -1220,6 +1220,7 @@ void VulkanEngine::draw_geometry(VkCommandBuffer cmd, const FrameData& frame)
         //rebind index buffer if needed
         if (draw.indexBuffer != lastIndexBuffer) {
             lastIndexBuffer = draw.indexBuffer;
+            // this is faster to switch.
             vkCmdBindIndexBuffer(cmd, draw.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
         }
 
