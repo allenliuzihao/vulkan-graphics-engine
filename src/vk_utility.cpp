@@ -45,3 +45,31 @@ bool vkutil::is_visible(const RenderObject& obj, const glm::mat4& viewproj) {
         return true;
     }
 }
+
+void vkutil::ImmediateSubmit::immediate_submit(VkDevice device, VkQueue queue, std::function<void(VkCommandBuffer cmd)>&& function)
+{
+    // reset fence to unsignaled
+    VK_CHECK(vkResetFences(device, 1, &_immFence));
+    // reset command buffer for re-recording.
+    VK_CHECK(vkResetCommandBuffer(_immCommandBuffer, 0));
+
+    VkCommandBuffer cmd = _immCommandBuffer;
+    // need to reset for reuse after submit.
+    VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+    VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+
+    function(cmd);
+
+    VK_CHECK(vkEndCommandBuffer(cmd));
+
+    // just submit the prior commands and then wait for it to finish.
+    VkCommandBufferSubmitInfo cmdinfo = vkinit::command_buffer_submit_info(cmd);
+    VkSubmitInfo2 submit = vkinit::submit_info(&cmdinfo, nullptr, nullptr);
+
+    // submit command buffer to the queue and execute it.
+    //  _renderFence will now block until the graphic commands finish execution
+    VK_CHECK(vkQueueSubmit2(queue, 1, &submit, _immFence));
+    // wait until prior queue submits finish on the CPU.
+    VK_CHECK(vkWaitForFences(device, 1, &_immFence, true, MAX_TIMEOUT));
+}

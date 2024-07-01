@@ -177,15 +177,15 @@ void VulkanEngine::init_commands()
     }
 
     // immediate submit mode command pool.
-    VK_CHECK(vkCreateCommandPool(_device, &commandPoolInfo, nullptr, &_immCommandPool));
+    VK_CHECK(vkCreateCommandPool(_device, &commandPoolInfo, nullptr, &immediateSubmit._immCommandPool));
 
     // allocate the command buffer for immediate submits
-    VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_immCommandPool, 1);
+    VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(immediateSubmit._immCommandPool, 1);
     // this command buffer is resettable, which means it can be allocated once and reset multiple times.
-    VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &_immCommandBuffer));
+    VK_CHECK(vkAllocateCommandBuffers(_device, &cmdAllocInfo, &immediateSubmit._immCommandBuffer));
 
     _mainDeletionQueue.push_function([=]() {
-        vkDestroyCommandPool(_device, _immCommandPool, nullptr);
+        vkDestroyCommandPool(_device, immediateSubmit._immCommandPool, nullptr);
     });
 }
 
@@ -208,10 +208,10 @@ void VulkanEngine::init_sync_structures()
     }
 
     // fence is signaled when created.
-    VK_CHECK(vkCreateFence(_device, &fenceCreateInfo, nullptr, &_immFence));
+    VK_CHECK(vkCreateFence(_device, &fenceCreateInfo, nullptr, &immediateSubmit._immFence));
     _mainDeletionQueue.push_function([=]() { 
         // capture by value.
-        vkDestroyFence(_device, _immFence, nullptr); 
+        vkDestroyFence(_device, immediateSubmit._immFence, nullptr);
     });
 }
 
@@ -767,7 +767,7 @@ AllocatedImage VulkanEngine::create_image(void* data, VkExtent3D size, VkFormat 
     AllocatedImage new_image = create_image(size, format, usage | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, mipmapped);
 
     // do an immediate submit that transfer from buffer to image.
-    immediate_submit([&](VkCommandBuffer cmd) {
+    immediateSubmit.immediate_submit(_device, _graphicsQueue, [&](VkCommandBuffer cmd) {
         vkutil::transition_image(cmd, new_image.image, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
         // copy from buffer to image.
@@ -873,7 +873,7 @@ GPUMeshBuffers VulkanEngine::uploadMesh(std::span<uint32_t> indices, std::span<V
     //  if those writes happen before queuesubmit.
     // wait on CPU after GPU work is finished.
     //  capture by reference.
-    immediate_submit([&](VkCommandBuffer cmd) {
+    immediateSubmit.immediate_submit(_device, _graphicsQueue, [&](VkCommandBuffer cmd) {
         VkBufferCopy vertexCopy{ 0 };
         vertexCopy.dstOffset = 0;
         vertexCopy.srcOffset = 0;
@@ -986,34 +986,6 @@ void VulkanEngine::cleanup()
 
     // clear engine pointer
     loadedEngine = nullptr;
-}
-
-void VulkanEngine::immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function)
-{
-    // reset fence to unsignaled
-    VK_CHECK(vkResetFences(_device, 1, &_immFence));
-    // reset command buffer for re-recording.
-    VK_CHECK(vkResetCommandBuffer(_immCommandBuffer, 0));
-
-    VkCommandBuffer cmd = _immCommandBuffer;
-    // need to reset for reuse after submit.
-    VkCommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-
-    VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
-
-    function(cmd);
-
-    VK_CHECK(vkEndCommandBuffer(cmd));
-
-    // just submit the prior commands and then wait for it to finish.
-    VkCommandBufferSubmitInfo cmdinfo = vkinit::command_buffer_submit_info(cmd);
-    VkSubmitInfo2 submit = vkinit::submit_info(&cmdinfo, nullptr, nullptr);
-
-    // submit command buffer to the queue and execute it.
-    //  _renderFence will now block until the graphic commands finish execution
-    VK_CHECK(vkQueueSubmit2(_graphicsQueue, 1, &submit, _immFence));
-    // wait until prior queue submits finish on the CPU.
-    VK_CHECK(vkWaitForFences(_device, 1, &_immFence, true, MAX_TIMEOUT));
 }
 
 void VulkanEngine::record_draw() {

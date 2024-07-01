@@ -1,6 +1,8 @@
 #pragma once
 
+#include <vk_constants.h>
 #include <vk_types.h>
+#include <vk_initializers.h>
 
 namespace vkutil {
     struct DeletionQueue
@@ -25,4 +27,12 @@ namespace vkutil {
     };
 
     bool is_visible(const RenderObject& obj, const glm::mat4& viewproj);
+
+    struct ImmediateSubmit {
+        // immediate submit structures
+        VkFence _immFence;
+        VkCommandBuffer _immCommandBuffer;
+        VkCommandPool _immCommandPool;
+        void immediate_submit(VkDevice device, VkQueue queue, std::function<void(VkCommandBuffer cmd)>&& function);
+    };
 };

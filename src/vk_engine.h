@@ -74,11 +74,7 @@ public:
 	VkPipeline _meshPipeline;
 	GPUMeshBuffers _meshData;
 
-	// immediate submit structures
-	VkFence _immFence;
-	VkCommandBuffer _immCommandBuffer;
-	VkCommandPool _immCommandPool;
-	void immediate_submit(std::function<void(VkCommandBuffer cmd)>&& function);
+	vkutil::ImmediateSubmit immediateSubmit;
 
 	// swapchain stuff.
 	VkSwapchainKHR _swapchain;
