@@ -61,11 +61,15 @@ void VulkanEngine::init_vulkan()
     features12.descriptorIndexing = true;       // bindless, allows arbitrary sized descriptor arrays. 
     features12.timelineSemaphore = true;
 
+    VkPhysicalDeviceFeatures pFeatures = {};
+    pFeatures.samplerAnisotropy = VK_TRUE;
+
     //use vkbootstrap to select a gpu. 
     //We want a gpu that can write to the SDL surface and supports vulkan 1.3 with the correct features
     vkb::PhysicalDeviceSelector selector{ vkb_inst };
     vkb::PhysicalDevice physicalDevice = selector
         .set_minimum_version(1, 3)
+        .set_required_features(pFeatures)
         .set_required_features_13(features)
         .set_required_features_12(features12)
         .set_surface(_surface)

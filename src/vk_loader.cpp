@@ -239,6 +239,9 @@ std::optional<std::shared_ptr<LoadedGLTF>> loadGltf(VulkanEngine* engine, std::f
         sampl.minFilter = extract_filter(sampler.minFilter.value_or(fastgltf::Filter::Nearest));
         // mipmap.
         sampl.mipmapMode = extract_mipmap_mode(sampler.minFilter.value_or(fastgltf::Filter::Nearest));
+        // anisotropic enable
+        sampl.anisotropyEnable = VK_TRUE;
+        sampl.maxAnisotropy = 16.0;
 
         VkSampler newSampler;
         vkCreateSampler(engine->_device, &sampl, nullptr, &newSampler);

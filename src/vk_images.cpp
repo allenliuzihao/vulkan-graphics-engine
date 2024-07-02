@@ -91,7 +91,7 @@ std::optional<AllocatedImage> vkutil::load_image(VulkanEngine* engine, fastgltf:
                     imagesize.height = height;
                     imagesize.depth = 1;
 
-                    newImage = vkutil::create_image(engine->_device, engine->_graphicsQueue, engine->_allocator, engine->immediateSubmit, data, imagesize, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT,false);
+                    newImage = vkutil::create_image(engine->_device, engine->_graphicsQueue, engine->_allocator, engine->immediateSubmit, data, imagesize, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT,true);
                     stbi_image_free(data);
                 }
             },
@@ -106,7 +106,7 @@ std::optional<AllocatedImage> vkutil::load_image(VulkanEngine* engine, fastgltf:
                 imagesize.height = height;
                 imagesize.depth = 1;
 
-                newImage = vkutil::create_image(engine->_device, engine->_graphicsQueue, engine->_allocator, engine->immediateSubmit, data, imagesize, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT,false);
+                newImage = vkutil::create_image(engine->_device, engine->_graphicsQueue, engine->_allocator, engine->immediateSubmit, data, imagesize, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT,true);
 
                 stbi_image_free(data);
             }
@@ -127,7 +127,7 @@ std::optional<AllocatedImage> vkutil::load_image(VulkanEngine* engine, fastgltf:
                         imagesize.height = height;
                         imagesize.depth = 1;
 
-                        newImage = vkutil::create_image(engine->_device, engine->_graphicsQueue, engine->_allocator, engine->immediateSubmit, data, imagesize, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT,false);
+                        newImage = vkutil::create_image(engine->_device, engine->_graphicsQueue, engine->_allocator, engine->immediateSubmit, data, imagesize, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_SAMPLED_BIT,true);
                         stbi_image_free(data);
                     }
                 }
