@@ -197,6 +197,7 @@ AllocatedImage vkutil::create_image(VkDevice device, VkQueue queue, const VmaAll
 
     // do an immediate submit that transfer from buffer to image.
     submit.immediate_submit(device, queue, [&](VkCommandBuffer cmd) {
+        // transition all mips to transfer_destination_optimal prior to transfer write to the mip = 0.
         vkutil::transition_image(cmd, new_image.image, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, 0, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
         // copy from buffer to image.
@@ -213,7 +214,7 @@ AllocatedImage vkutil::create_image(VkDevice device, VkQueue queue, const VmaAll
         copyRegion.imageSubresource.layerCount = 1;
         copyRegion.imageExtent = size;
 
-        // copy the buffer into the image
+        // copy the buffer into the image, transition images to transfer_dst_optimal for all mips.
         vkCmdCopyBufferToImage(cmd, uploadbuffer.buffer, new_image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
         if (mipmapped) {
@@ -284,6 +285,7 @@ void vkutil::generate_mipmaps(VkCommandBuffer cmd, VkImage image, VkExtent2D ima
 
             VkBlitImageInfo2 blitInfo{ .sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2, .pNext = nullptr };
             blitInfo.dstImage = image;
+            // this happens when copy buffer to mip 0 of image. we transition all mips to dst_optimal then.
             blitInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
             blitInfo.srcImage = image;
             blitInfo.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
