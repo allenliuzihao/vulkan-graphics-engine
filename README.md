@@ -7,3 +7,5 @@ Some of the modern engine features include:
 3. Draw call sorting of transparent and opaque objects, respectively.
 4. More precise synchronization and pipeline barrier compared to the original project.
 5. dynamic rendering to set up the render attachments for draw calls.
+
+![alt text](image.png)
