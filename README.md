@@ -8,4 +8,6 @@ Some of the modern engine features include:
 4. More precise synchronization and pipeline barrier compared to the original project.
 5. dynamic rendering to set up the render attachments for draw calls.
 
+The following frame runs on a RTX 2080 Ti and Intel(R) Core(TM) i9-10900K CPU @ 3.70GHz, 3696 Mhz, 10 Core(s), 20 Logical Processor(s).
+
 ![alt text](image.png)
