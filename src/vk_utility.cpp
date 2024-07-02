@@ -31,8 +31,6 @@ bool vkutil::is_visible(const RenderObject& obj, const glm::mat4& viewproj) {
         v.y = v.y / v.w;
         v.z = v.z / v.w;
 
-        //passTest = passTest || vkutil::is_point_within_box(glm::vec3(v.x, v.y, v.z), CLIP_SPACE_MIN_BOUND, CLIP_SPACE_MAX_BOUND);
-
         // find clip space min max bounding box.
         min = glm::min(glm::vec3{ v.x, v.y, v.z }, min);
         max = glm::max(glm::vec3{ v.x, v.y, v.z }, max);
