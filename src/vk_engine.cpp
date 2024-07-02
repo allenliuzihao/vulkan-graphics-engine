@@ -1344,5 +1344,5 @@ void VulkanEngine::init_triangle_pipeline() {
     _mainDeletionQueue.push_function([=]() {
         vkDestroyPipeline(_device, _trianglePipeline, nullptr);
         vkDestroyPipelineLayout(_device, _trianglePipelineLayout, nullptr);
-        });
+     });
 }
