@@ -693,7 +693,7 @@ void VulkanEngine::update_scene(float deltaTime)
     // view matrix.
     sceneData.view = mainCamera.getViewMatrix();
     // camera projection
-    sceneData.proj = glm::perspective(glm::radians(70.f), (float)_windowExtent.width / (float)_windowExtent.height, 10000.f, 0.1f);
+    sceneData.proj = glm::perspective(glm::radians(70.f), (float)_windowExtent.width / (float)_windowExtent.height, 1000.0f, 0.1f);
 
     // invert the Y direction on projection matrix so that we are more similar
     // to opengl and gltf axis in the screen space (-1, 1).

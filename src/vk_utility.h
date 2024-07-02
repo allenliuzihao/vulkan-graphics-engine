@@ -3,6 +3,7 @@
 #include <vk_constants.h>
 #include <vk_types.h>
 #include <vk_initializers.h>
+#include <vk_constants.h>
 
 namespace vkutil {
     struct DeletionQueue
@@ -26,6 +27,9 @@ namespace vkutil {
         }
     };
 
+    bool is_point_within_interval(float point, float MIN, float MAX);
+    bool is_point_within_box(glm::vec3 pos, glm::vec3 MIN, glm::vec3 MAX);
+    bool is_interval_overlap(float interval1Min, float interval1Max, float interval2Min, float interval2Max);
     bool is_visible(const RenderObject& obj, const glm::mat4& viewproj);
 
     struct ImmediateSubmit {
