@@ -88,7 +88,7 @@ public:
 	bool _isInitialized{ false };
 	uint64_t _frameNumber {0};
 	bool stop_rendering{ false };
-	VkExtent2D _windowExtent{ 1920 ,1080 };
+	VkExtent2D _windowExtent{ 1024, 1024 };
 
 	struct SDL_Window* _window{ nullptr };
 
