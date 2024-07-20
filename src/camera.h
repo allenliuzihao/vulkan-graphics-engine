@@ -7,6 +7,7 @@
 
 class Camera {
 public:
+
     // velocity in camera space.
     glm::vec3 velocity;
     // position in world space.

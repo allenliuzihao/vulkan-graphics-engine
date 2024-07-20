@@ -36,27 +36,41 @@ glm::mat4 Camera::getRotationMatrix()
 
 void Camera::processSDLEvent(SDL_Event& e)
 {
+    static bool enableMouseMotion = false;
+
     // improve event handling.
     if (e.type == SDL_KEYDOWN) {
-        if (e.key.keysym.sym == SDLK_w) { 
+        if (e.key.keysym.sym == SDLK_w) {
             pressDownW = true;
-        } else if (e.key.keysym.sym == SDLK_s) { 
+        } else if (e.key.keysym.sym == SDLK_s) {
             pressDownS = true;
-        } else if (e.key.keysym.sym == SDLK_a) { 
+        } else if (e.key.keysym.sym == SDLK_a) {
             pressDownA = true;
-        } else if (e.key.keysym.sym == SDLK_d) { 
+        } else if (e.key.keysym.sym == SDLK_d) {
             pressDownD = true;
         }
         //fmt::println("pressed {} down", e.key.keysym.sym);
     } else if (e.type == SDL_KEYUP) {
-        if (e.key.keysym.sym == SDLK_w) { 
+        if (e.key.keysym.sym == SDLK_w) {
             pressDownW = false;
         } else if (e.key.keysym.sym == SDLK_s) {
             pressDownS = false;
-        } else if (e.key.keysym.sym == SDLK_a) { 
+        } else if (e.key.keysym.sym == SDLK_a) {
             pressDownA = false;
-        } else if (e.key.keysym.sym == SDLK_d) { 
+        } else if (e.key.keysym.sym == SDLK_d) {
             pressDownD = false;
+        }
+    } else if (e.type == SDL_MOUSEBUTTONDOWN && (SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON_RMASK)) {
+        fmt::println("mouse button down.");
+        enableMouseMotion = true;
+    } else if (e.type == SDL_MOUSEBUTTONUP) {
+        fmt::println("mouse button up.");
+        enableMouseMotion = false;
+    } else if (e.type == SDL_MOUSEMOTION) {
+        fmt::println("mouse motion.");
+        if (enableMouseMotion) {
+            yaw += (float)e.motion.xrel / 200.f;
+            pitch -= (float)e.motion.yrel / 200.f;
         }
     }
 
@@ -81,9 +95,4 @@ void Camera::processSDLEvent(SDL_Event& e)
     }
 
     velocity *= 5;
-
-    if (e.type == SDL_MOUSEMOTION) {
-        yaw += (float)e.motion.xrel / 200.f;
-        pitch -= (float)e.motion.yrel / 200.f;
-    }
 }
